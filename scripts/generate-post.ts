@@ -65,15 +65,14 @@ function loadApiKey(): string {
 }
 
 function toSlug(text: string): string {
-  // 한글은 제거하고 영문/숫자만 slug에 포함 (URL 호환성)
+  // 한글 + 영문/숫자 모두 slug에 포함 (Next.js는 한글 URL 지원)
   return text
-    .replace(/[가-힣]+/g, "") // 한글 제거
-    .replace(/[^\w\s-]/g, "") // 특수문자 제거
+    .replace(/[^\w\s가-힣-]/g, "") // 한글·영문·숫자·하이픈만 유지
     .replace(/\s+/g, "-")
     .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "") // 앞뒤 하이픈 제거
+    .replace(/^-|-$/g, "")
     .slice(0, 60)
-    .toLowerCase() || "post"; // 빈 문자열 방지
+    .toLowerCase() || "post";
 }
 
 function todayDate(): string {

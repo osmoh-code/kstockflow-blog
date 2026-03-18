@@ -66,11 +66,12 @@ const DEFAULT_THEME: CategoryTheme = {
 
 function toSlug(text: string): string {
   return text
-    .replace(/[^\w가-힣\s-]/g, "")
+    .replace(/[^\w\s가-힣-]/g, "")
     .replace(/\s+/g, "-")
     .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
     .slice(0, 60)
-    .toLowerCase();
+    .toLowerCase() || "post";
 }
 
 function todayFormatted(): string {
