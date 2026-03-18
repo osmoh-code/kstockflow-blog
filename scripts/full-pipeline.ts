@@ -71,13 +71,17 @@ function loadEnvVar(key: string): string | null {
 }
 
 function toSlug(text: string): string {
-  return text
-    .replace(/[^\w\s가-힣-]/g, "")
+  const slug = text
+    .replace(/[가-힣]+/g, " ")
+    .replace(/[^\w\s-]/g, "")
     .replace(/\s+/g, "-")
     .replace(/-+/g, "-")
     .replace(/^-|-$/g, "")
     .slice(0, 60)
-    .toLowerCase() || "post";
+    .toLowerCase();
+  if (slug) return slug;
+  const ts = Date.now().toString(36).slice(-6);
+  return `post-${ts}`;
 }
 
 function todayDate(): string {

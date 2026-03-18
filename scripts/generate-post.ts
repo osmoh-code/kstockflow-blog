@@ -65,14 +65,22 @@ function loadApiKey(): string {
 }
 
 function toSlug(text: string): string {
-  // 한글 + 영문/숫자 모두 slug에 포함 (Next.js는 한글 URL 지원)
-  return text
-    .replace(/[^\w\s가-힣-]/g, "") // 한글·영문·숫자·하이픈만 유지
+  // 영문/숫자만 slug에 포함 (Next.js 정적 빌드 한글 호환 문제 방지)
+  // 한글은 제거하되, 한글만 있는 경우 타임스탬프로 고유 slug 생성
+  const slug = text
+    .replace(/[가-힣]+/g, " ")      // 한글 → 공백 (단어 구분 유지)
+    .replace(/[^\w\s-]/g, "")       // 특수문자 제거
     .replace(/\s+/g, "-")
     .replace(/-+/g, "-")
     .replace(/^-|-$/g, "")
     .slice(0, 60)
-    .toLowerCase() || "post";
+    .toLowerCase();
+
+  if (slug) return slug;
+
+  // 순한글 키워드: 현재 시간 기반 고유 ID 생성
+  const ts = Date.now().toString(36).slice(-6);
+  return `post-${ts}`;
 }
 
 function todayDate(): string {
