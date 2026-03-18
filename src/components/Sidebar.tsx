@@ -98,9 +98,17 @@ export default function Sidebar() {
                 >
                   {/* Small thumbnail */}
                   <div className="h-14 w-14 flex-shrink-0 overflow-hidden rounded-lg bg-gradient-to-br from-red-50 to-slate-100">
-                    <div className="flex h-full w-full items-center justify-center text-sm font-bold text-red-200/60">
-                      K
-                    </div>
+                    {post.meta.thumbnail ? (
+                      <img
+                        src={post.meta.thumbnail}
+                        alt={post.meta.title}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center text-sm font-bold text-red-200/60">
+                        K
+                      </div>
+                    )}
                   </div>
                   <div className="flex-1 min-w-0">
                     <h3 className="text-sm font-medium leading-snug text-gray-700 line-clamp-2 group-hover:text-brand-accent transition-colors duration-150">
