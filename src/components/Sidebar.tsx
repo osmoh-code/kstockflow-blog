@@ -1,6 +1,5 @@
 import Link from "next/link";
 import {
-  Search,
   BarChart3,
   Flame,
   TrendingUp,
@@ -11,6 +10,7 @@ import { CATEGORIES } from "@/lib/constants";
 import { getAllPosts } from "@/lib/posts";
 import type { PostMeta } from "@/lib/posts";
 import AdPlacement from "./AdPlacement";
+import SidebarSearch from "./SidebarSearch";
 
 const CATEGORY_ICONS: Record<string, React.ElementType> = {
   "featured-stocks": BarChart3,
@@ -44,17 +44,7 @@ export default function Sidebar() {
   return (
     <aside className="sticky top-24 space-y-6">
       {/* Search */}
-      <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-          <input
-            type="search"
-            placeholder="글 검색..."
-            className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 pl-10 pr-4 text-sm text-gray-700 placeholder:text-gray-400 transition-colors duration-150 focus:border-brand-accent focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-accent/20"
-            aria-label="블로그 글 검색"
-          />
-        </div>
-      </div>
+      <SidebarSearch />
 
       {/* Categories */}
       <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">

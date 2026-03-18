@@ -3,12 +3,16 @@ import { ArrowRight } from "lucide-react";
 import { getAllPosts } from "@/lib/posts";
 import { generateWebSiteStructuredData } from "@/lib/seo";
 import HeroSection from "@/components/HeroSection";
+import FeaturedPost from "@/components/FeaturedPost";
 import BlogCard from "@/components/BlogCard";
 import Sidebar from "@/components/Sidebar";
 
 export default function HomePage() {
   const allPosts = getAllPosts();
   const websiteStructuredData = generateWebSiteStructuredData();
+
+  const featuredPost = allPosts.length > 0 ? allPosts[0] : null;
+  const remainingPosts = allPosts.slice(1);
 
   return (
     <>
@@ -20,6 +24,13 @@ export default function HomePage() {
       <HeroSection />
 
       <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+        {/* Featured Post */}
+        {featuredPost && (
+          <div className="mb-10">
+            <FeaturedPost post={featuredPost.meta} />
+          </div>
+        )}
+
         {/* Main Content + Sidebar */}
         <div className="flex flex-col gap-10 lg:flex-row" id="latest-posts">
           {/* Posts Grid */}
@@ -36,7 +47,7 @@ export default function HomePage() {
             </div>
 
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3">
-              {allPosts.map((post) => (
+              {remainingPosts.map((post) => (
                 <BlogCard
                   key={post.meta.slug}
                   post={post.meta}

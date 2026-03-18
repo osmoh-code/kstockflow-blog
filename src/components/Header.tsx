@@ -4,9 +4,11 @@ import { useState, useCallback } from "react";
 import Link from "next/link";
 import { TrendingUp, Search, Menu, X } from "lucide-react";
 import { NAV_LINKS, SITE_NAME } from "@/lib/constants";
+import SearchModal from "./SearchModal";
 
 export default function Header() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
 
   const toggleMobileMenu = useCallback(() => {
     setIsMobileMenuOpen((prev) => !prev);
@@ -14,6 +16,14 @@ export default function Header() {
 
   const closeMobileMenu = useCallback(() => {
     setIsMobileMenuOpen(false);
+  }, []);
+
+  const openSearch = useCallback(() => {
+    setIsSearchOpen(true);
+  }, []);
+
+  const closeSearch = useCallback(() => {
+    setIsSearchOpen(false);
   }, []);
 
   return (
@@ -50,6 +60,7 @@ export default function Header() {
         <div className="flex items-center gap-2">
           <button
             type="button"
+            onClick={openSearch}
             className="flex h-10 w-10 items-center justify-center rounded-xl text-gray-500 transition-colors duration-150 hover:bg-gray-50 hover:text-gray-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-accent"
             aria-label="검색"
           >
@@ -103,6 +114,9 @@ export default function Header() {
           </nav>
         </>
       )}
+
+      {/* Search Modal */}
+      <SearchModal isOpen={isSearchOpen} onClose={closeSearch} />
     </header>
   );
 }
