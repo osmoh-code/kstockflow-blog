@@ -1,0 +1,68 @@
+# 자동 게시 워크플로우 (Level 3 자동화)
+# 매일 00:00 UTC (09:00 KST)에 자동 실행
+# 키워드 크롤링 → AI 글 생성 → 썸네일 생성 → Git 커밋/푸시 전체 파이프라인
+
+name: Auto Publish (Daily)
+
+on:
+  # 매일 00:00 UTC (한국시간 09:00)에 자동 실행
+  schedule:
+    - cron: '0 0 * * *'
+
+  # 수동 실행도 가능 (선택적 키워드 입력)
+  workflow_dispatch:
+    inputs:
+      keyword:
+        description: '특정 키워드 (비워두면 자동 크롤링)'
+        required: false
+        type: string
+
+jobs:
+  auto-publish:
+    name: 자동 게시 파이프라인
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. 소스코드 체크아웃
+      - name: 소스코드 체크아웃
+        uses: actions/checkout@v4
+        with:
+          # 스크립트 내에서 git push 가능하도록 토큰 설정
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      # 2. Node.js 20 설정
+      - name: Node.js 20 설정
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # 3. node_modules 캐시
+      - name: node_modules 캐시
+        uses: actions/cache@v4
+        id: cache-node-modules
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-modules-${{ hashFiles('package-lock.json', 'package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-modules-
+
+      # 4. 의존성 설치
+      - name: 의존성 설치
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: npm ci
+
+      # 5. Git 사용자 설정 (스크립트 내 git push를 위해)
+      - name: Git 사용자 설정
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      # 6. 전체 파이프라인 실행 (Level 3 자동화)
+      - name: 전체 파이프라인 실행
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GOOGLE_SERVICE_ACCOUNT_EMAIL: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_EMAIL }}
+          GOOGLE_PRIVATE_KEY: ${{ secrets.GOOGLE_PRIVATE_KEY }}
+          # 수동 실행 시 입력된 키워드 전달
+          INPUT_KEYWORD: ${{ github.event.inputs.keyword }}
+        run: npm run full-pipeline

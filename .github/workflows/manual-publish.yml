@@ -1,0 +1,66 @@
+# 수동 게시 워크플로우 (Level 1 자동화)
+# GitHub Actions UI에서 키워드를 입력하여 수동 실행
+# 지정 키워드로 글 생성 → 게시
+
+name: Manual Publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      keyword:
+        description: '게시할 키워드 (예: 삼성전자 주가 전망)'
+        required: true
+        type: string
+
+jobs:
+  manual-publish:
+    name: 수동 게시
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. 소스코드 체크아웃
+      - name: 소스코드 체크아웃
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      # 2. Node.js 20 설정
+      - name: Node.js 20 설정
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # 3. node_modules 캐시
+      - name: node_modules 캐시
+        uses: actions/cache@v4
+        id: cache-node-modules
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-modules-${{ hashFiles('package-lock.json', 'package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-modules-
+
+      # 4. 의존성 설치
+      - name: 의존성 설치
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: npm ci
+
+      # 5. Git 사용자 설정
+      - name: Git 사용자 설정
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      # 6. 키워드로 글 생성
+      - name: 글 생성
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: npm run generate -- "${{ github.event.inputs.keyword }}"
+
+      # 7. 생성된 글 게시
+      - name: 글 게시
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GOOGLE_SERVICE_ACCOUNT_EMAIL: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_EMAIL }}
+          GOOGLE_PRIVATE_KEY: ${{ secrets.GOOGLE_PRIVATE_KEY }}
+        run: npm run publish
