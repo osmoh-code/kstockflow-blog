@@ -1,9 +1,12 @@
 /**
  * 관련주 시세/재무정보 자동 크롤링
- * - 종목코드 매핑 테이블 + 네이버 금융 웹 크롤링 fallback
- * - 현재가, 등락률, 시가총액, PER, PBR, 52주 최고/최저
+ * - KRX(한국거래소) KIND API로 전체 종목코드 자동 조회
+ * - 네이버 금융 웹 크롤링으로 시세 데이터 수집
+ * - 현재가, 등락률, PER, PBR
  * - 차트 이미지 URL 생성 (네이버 금융 차트 API)
  */
+
+import https from "https";
 
 export interface StockInfo {
   readonly name: string;
@@ -22,109 +25,116 @@ export interface StockInfo {
 }
 
 /**
- * 주요 종목 코드 매핑 (ac.finance.naver.com DNS 문제 대응)
+ * KRX KIND API에서 전체 상장 종목 목록 다운로드 (KOSPI + KOSDAQ)
+ * 약 2700+ 종목의 회사명→종목코드 매핑을 반환
  */
-const STOCK_CODE_MAP: Record<string, string> = {
-  // 대형주
-  "삼성전자": "005930", "SK하이닉스": "000660", "현대차": "005380", "기아": "000270",
-  "LG에너지솔루션": "373220", "삼성바이오로직스": "207940", "NAVER": "035420", "네이버": "035420",
-  "카카오": "035720", "삼성SDI": "006400", "LG화학": "051910", "현대모비스": "012330",
-  "포스코홀딩스": "005490", "POSCO홀딩스": "005490", "셀트리온": "068270", "KB금융": "105560",
-  "신한지주": "055550", "SK이노베이션": "096770", "한국전력": "015760", "삼성물산": "028260",
-  "하나금융지주": "086790", "삼성생명": "032830", "LG전자": "066570", "삼성화재": "000810",
-  "SK텔레콤": "017670", "KT": "030200", "LG유플러스": "032640", "한화솔루션": "009830",
-  "두산에너빌리티": "034020", "SK": "034730", "롯데케미칼": "011170", "한화에어로스페이스": "012450",
-  // 우주항공/방산
-  "한화시스템": "272210", "한국항공우주산업": "047810", "한국항공우주": "047810", "KAI": "047810",
-  "쎄트렉아이": "099320", "인텔리안테크": "189300", "AP위성": "211270", "켄코아에어로스페이스": "274090",
-  "LIG넥스원": "079550", "한화오션": "042660", "현대로템": "064350", "풍산": "103140",
-  "이노스페이스": "462350", "스페코": "013810", "유니온머티리얼": "047400",
-  "컨텍": "451480", "제노코": "217530", "비츠로셀": "082920",
-  // 반도체
-  "DB하이텍": "000990", "리노공업": "058470", "한미반도체": "042700", "이오테크닉스": "039030",
-  "주성엔지니어링": "036930", "원익IPS": "240810", "HPSP": "403870", "피에스케이": "319660",
-  "테크윙": "089030", "ISC": "095340",
-  // AI/로봇
-  "레인보우로보틱스": "277810", "두산로보틱스": "454910", "뉴로메카": "348340",
-  // 바이오
-  "삼성바이오에피스": "326030", "SK바이오팜": "326030", "에이치엘비": "028300",
-  "유한양행": "000100", "녹십자": "006280", "한미약품": "128940",
-  // 2차전지/전기차
-  "에코프로비엠": "247540", "에코프로": "086520", "포스코퓨처엠": "003670",
-  "엘앤에프": "066970", "성일하이텍": "365340",
-  // 원전
-  "한전기술": "052690", "비에이치아이": "083650",
-  // 엔터
-  "하이브": "352820", "SM": "041510", "JYP엔터테인먼트": "035900", "YG엔터테인먼트": "122870",
-  // 해운
-  "대한해운": "005880", "팬오션": "028670", "SM상선": "002410", "흥아해운": "003280",
-  "HMM": "011200", "KSS해운": "044450",
-  // 정유/석유
-  "한국석유": "004090", "흥구석유": "024060", "중앙에너비스": "000440",
-  "에스오일": "010950", "S-Oil": "010950", "GS칼텍스": "078930",
-  // 통신장비/6G
-  "RF머트리얼즈": "327260", "라이콤": "388790", "대한광통신": "010170",
-  "케이엔더블유": "285490", "KMW": "285490", "오이솔루션": "138230", "옵티코어": "441270",
-  "이노와이어리스": "073490", "쏠리드": "050890", "에이스테크놀로지": "088800",
-  "다산네트웍스": "039560", "텔레필드": "091440", "서진시스템": "178320",
-  "삼성전기": "009150",
-  // 기타
-  "성창기업": "000180", "현대건설": "000720", "대한항공": "003490",
-  "CJ제일제당": "097950", "아모레퍼시픽": "090430", "네이처셀": "007390",
-};
+let krxCachePromise: Promise<ReadonlyMap<string, string>> | null = null;
 
-/**
- * 네이버 금융 시가총액 페이지에서 종목코드 검색 (fallback)
- */
-async function searchStockCodeFromWeb(stockName: string): Promise<string | null> {
-  try {
-    for (const sosok of [0, 1]) {
-      for (let page = 1; page <= 5; page++) {
-        const url = `https://finance.naver.com/sise/sise_market_sum.naver?sosok=${sosok}&page=${page}`;
-        const response = await fetch(url, {
-          headers: {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-          },
-        });
-        if (!response.ok) continue;
+function fetchKrxStockList(): Promise<ReadonlyMap<string, string>> {
+  if (krxCachePromise) return krxCachePromise;
 
-        const html = await response.text();
-        const regex = /code=(\d{6})"[^>]*>\s*([^<]+)\s*</g;
-        let match: RegExpExecArray | null;
-        while ((match = regex.exec(html)) !== null) {
-          const code = match[1];
-          const name = match[2].trim();
-          if (name === stockName || name.includes(stockName) || stockName.includes(name)) {
-            return code;
+  krxCachePromise = new Promise<ReadonlyMap<string, string>>((resolve) => {
+    const url = "https://kind.krx.co.kr/corpgeneral/corpList.do?method=download&searchType=13";
+
+    const req = https.get(url, {
+      headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" },
+      timeout: 15000,
+    }, (res) => {
+      const chunks: Buffer[] = [];
+      res.on("data", (c: Buffer) => chunks.push(c));
+      res.on("end", () => {
+        try {
+          const buf = Buffer.concat(chunks);
+          const decoder = new TextDecoder("euc-kr");
+          const text = decoder.decode(buf);
+
+          const map = new Map<string, string>();
+          const rows = text.match(/<tr>[\s\S]*?<\/tr>/g) ?? [];
+
+          for (const row of rows.slice(1)) {
+            const cells = row.match(/<td[^>]*>([\s\S]*?)<\/td>/g) ?? [];
+            if (cells.length >= 3) {
+              const name = cells[0].replace(/<[^>]+>/g, "").trim();
+              const rawCode = cells[2].replace(/<[^>]+>/g, "").replace(/[^0-9A-Z]/g, "").trim();
+              if (name && /^\d{6}$/.test(rawCode)) {
+                map.set(name, rawCode);
+              }
+            }
           }
+
+          console.log(`  ✅ KRX 종목 목록 로드 완료: ${map.size}개 종목`);
+          resolve(map);
+        } catch (error) {
+          console.warn("  ⚠️ KRX 데이터 파싱 실패:", error);
+          resolve(new Map());
         }
-      }
-    }
-    return null;
-  } catch {
-    return null;
-  }
+      });
+    });
+
+    req.on("error", (error) => {
+      console.warn("  ⚠️ KRX API 요청 실패:", error.message);
+      resolve(new Map());
+    });
+
+    req.on("timeout", () => {
+      req.destroy();
+      console.warn("  ⚠️ KRX API 타임아웃");
+      resolve(new Map());
+    });
+  });
+
+  return krxCachePromise;
 }
 
 /**
- * 종목명으로 종목코드 검색 (매핑 → 웹 크롤링 fallback)
+ * 수동 매핑 (KRX에 없거나 별칭이 필요한 종목용 — 최소한만 유지)
+ */
+const STOCK_CODE_ALIASES: Record<string, string> = {
+  "NAVER": "035420", "네이버": "035420",
+  "POSCO홀딩스": "005490",
+  "한국항공우주": "047810", "KAI": "047810",
+  "KMW": "285490",
+  "S-Oil": "010950",
+  "SM상선": "002410",
+  "한국석유": "004090",
+};
+
+/**
+ * 종목명으로 종목코드 검색
+ * 1순위: 별칭 매핑 (빠른 조회)
+ * 2순위: KRX KIND API 전체 목록 (2700+ 종목)
+ * 3순위: KRX 목록에서 부분 매칭
  */
 async function searchStockCode(stockName: string): Promise<string | null> {
-  // 1. 하드코딩 매핑에서 찾기
-  if (STOCK_CODE_MAP[stockName]) {
-    return STOCK_CODE_MAP[stockName];
+  // 1. 별칭 매핑 — 정확히 일치
+  if (STOCK_CODE_ALIASES[stockName]) {
+    return STOCK_CODE_ALIASES[stockName];
   }
 
-  // 2. 부분 매칭 시도
-  for (const [name, code] of Object.entries(STOCK_CODE_MAP)) {
+  // 2. KRX 전체 목록에서 검색
+  const krxMap = await fetchKrxStockList();
+
+  // 2a. 정확히 일치
+  if (krxMap.has(stockName)) {
+    return krxMap.get(stockName)!;
+  }
+
+  // 2b. 부분 매칭 (입력명이 KRX 종목명에 포함되거나 그 반대)
+  for (const [name, code] of krxMap) {
     if (name.includes(stockName) || stockName.includes(name)) {
+      console.log(`  🔍 부분 매칭: "${stockName}" → "${name}" (${code})`);
       return code;
     }
   }
 
-  // 3. 웹 크롤링 fallback
-  console.log(`  🔍 매핑에 없는 종목 — 네이버 금융에서 검색: ${stockName}`);
-  return searchStockCodeFromWeb(stockName);
+  // 3. 별칭에서 부분 매칭
+  for (const [alias, code] of Object.entries(STOCK_CODE_ALIASES)) {
+    if (alias.includes(stockName) || stockName.includes(alias)) {
+      return code;
+    }
+  }
+
+  return null;
 }
 
 /**
