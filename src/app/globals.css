@@ -141,6 +141,13 @@ html {
   @apply text-sm;
 }
 
+.prose mark {
+  background-color: #FEF9C3;
+  color: inherit;
+  padding: 0.1em 0.3em;
+  border-radius: 0.2em;
+}
+
 .prose thead th {
   @apply bg-gray-50 text-gray-700;
 }
