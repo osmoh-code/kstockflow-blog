@@ -30,6 +30,7 @@ import {
   type StockInfo,
 } from "./lib/stock-data";
 import { findAndDownloadThumbnail } from "./lib/image-search";
+import { searchNews, newsToContext } from "./lib/news-search";
 
 // ---------------------------------------------------------------------------
 // Config
@@ -252,13 +253,23 @@ async function main(): Promise<void> {
   }
 
   // -----------------------------------------------------------------------
+  // Step 1.5: 키워드 관련 최신 뉴스 검색 (Google News RSS)
+  // -----------------------------------------------------------------------
+  console.log("\n📰 최신 뉴스 검색 중...");
+  const newsItems = await searchNews(keyword, 10);
+  const newsContext = newsToContext(newsItems);
+
+  // -----------------------------------------------------------------------
   // Step 2: Claude API로 포스트 생성
   // -----------------------------------------------------------------------
   console.log("\n📝 Claude API로 포스트 생성 중...\n");
 
   const apiKey = loadApiKey();
   const client = new Anthropic({ apiKey });
-  const { system, user } = buildPrompt(keyword, stockContext || undefined);
+
+  // 주식 컨텍스트 + 뉴스 컨텍스트 결합
+  const combinedContext = [stockContext, newsContext].filter(Boolean).join("\n") || undefined;
+  const { system, user } = buildPrompt(keyword, combinedContext);
 
   const response = await client.messages.create({
     model: MODEL,

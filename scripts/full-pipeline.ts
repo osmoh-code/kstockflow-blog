@@ -17,6 +17,7 @@ import { crawlKeywords, type TrendingKeyword } from "./crawl-keywords";
 import { buildPrompt, parseResponse, getCategorySlug, type GeneratedPost } from "./lib/claude-prompt";
 import { getMultipleStockInfo, stockSummaryTable, stockPerItemBlocks, stockInfoToContext } from "./lib/stock-data";
 import { findAndDownloadThumbnail } from "./lib/image-search";
+import { searchNews, newsToContext } from "./lib/news-search";
 import { execSync } from "child_process";
 import fs from "fs";
 import path from "path";
@@ -120,7 +121,11 @@ async function generateSinglePost(keyword: string): Promise<PipelineResult> {
     // Dynamic import to handle case where SDK is not installed
     const Anthropic = (await import("@anthropic-ai/sdk")).default;
     const client = new Anthropic({ apiKey });
-    const { system, user } = buildPrompt(keyword);
+
+    // 최신 뉴스 검색
+    const newsItems = await searchNews(keyword, 10);
+    const newsContext = newsToContext(newsItems);
+    const { system, user } = buildPrompt(keyword, newsContext || undefined);
 
     const response = await client.messages.create({
       model: MODEL,
