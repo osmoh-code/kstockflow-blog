@@ -115,7 +115,7 @@ export default async function CategoryPage({ params }: PageProps) {
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3">
               {posts.map((post, index) => (
                 <div key={post.meta.slug}>
-                  <BlogCard post={post.meta} featured={index === 0} />
+                  <BlogCard post={post.meta} />
                   {(index + 1) % 6 === 0 && (
                     <div className="mt-6 sm:col-span-2 xl:col-span-3">
                       <AdPlacement type="between-cards" />

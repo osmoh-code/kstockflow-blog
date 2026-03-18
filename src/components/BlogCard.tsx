@@ -21,9 +21,7 @@ function formatDate(dateStr: string): string {
 export default function BlogCard({ post, featured = false }: BlogCardProps) {
   return (
     <article
-      className={`group relative flex flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-lg ${
-        featured ? "sm:col-span-2" : ""
-      }`}
+      className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-lg"
     >
       <Link
         href={`/posts/${post.slug}`}
