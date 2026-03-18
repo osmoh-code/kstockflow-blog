@@ -12,6 +12,7 @@ import {
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import CookieConsent from "@/components/CookieConsent";
+import { generateOrganizationStructuredData } from "@/lib/seo";
 import "./globals.css";
 
 const inter = Inter({
@@ -123,6 +124,10 @@ export default function RootLayout({
         </Script>
       </head>
       <body className={`${inter.className} flex min-h-screen flex-col bg-white`}>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: generateOrganizationStructuredData() }}
+        />
         <a href="#main-content" className="skip-to-content">
           본문으로 건너뛰기
         </a>

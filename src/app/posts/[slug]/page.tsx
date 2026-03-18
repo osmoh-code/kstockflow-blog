@@ -17,6 +17,8 @@ import {
 import {
   generateArticleStructuredData,
   generateBreadcrumbStructuredData,
+  generateFAQStructuredData,
+  extractFAQFromContent,
 } from "@/lib/seo";
 import {
   SITE_URL,
@@ -115,6 +117,8 @@ export default async function PostPage({ params }: PageProps) {
 
   const breadcrumbStructuredData = generateBreadcrumbStructuredData(breadcrumbs);
   const articleStructuredData = generateArticleStructuredData(meta);
+  const faqs = extractFAQFromContent(content);
+  const faqStructuredData = faqs.length > 0 ? generateFAQStructuredData(faqs) : null;
 
   const shareUrl = `${SITE_URL}/posts/${slug}`;
   const shareText = encodeURIComponent(meta.title);
@@ -129,6 +133,12 @@ export default async function PostPage({ params }: PageProps) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: articleStructuredData }}
       />
+      {faqStructuredData && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: faqStructuredData }}
+        />
+      )}
 
       <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
         {/* Breadcrumb */}

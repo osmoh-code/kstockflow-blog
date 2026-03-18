@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { CATEGORIES, SITE_NAME, SITE_URL } from "@/lib/constants";
 import { getPostsByCategory } from "@/lib/posts";
+import { generateBreadcrumbStructuredData } from "@/lib/seo";
 import BlogCard from "@/components/BlogCard";
 import Sidebar from "@/components/Sidebar";
 import AdPlacement from "@/components/AdPlacement";
@@ -79,8 +80,18 @@ export default async function CategoryPage({ params }: PageProps) {
     CATEGORY_DESCRIPTIONS[slug] ??
     `${category.name} 관련 최신 분석 글을 확인하세요.`;
 
+  const breadcrumbs = [
+    { name: "홈", url: "/" },
+    { name: category.name, url: `/category/${slug}` },
+  ];
+  const breadcrumbStructuredData = generateBreadcrumbStructuredData(breadcrumbs);
+
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: breadcrumbStructuredData }}
+      />
       {/* Category Header */}
       <header className="mb-10">
         <div className="flex items-center gap-3">
