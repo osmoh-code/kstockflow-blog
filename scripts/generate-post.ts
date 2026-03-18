@@ -84,7 +84,7 @@ function todayDate(): string {
   return `${y}-${m}-${d}`;
 }
 
-function parseArgs(): { keyword: string; stocks: readonly string[]; thumbnail: string | null } {
+function parseArgs(): { keyword: string; stocks: readonly string[]; thumbnail: string | null; preview: boolean } {
   const args = process.argv.slice(2);
   const keyword = args.find((a) => !a.startsWith("--"));
   const stocksIdx = args.indexOf("--stocks");
@@ -96,8 +96,13 @@ function parseArgs(): { keyword: string; stocks: readonly string[]; thumbnail: s
   const thumbIdx = args.indexOf("--thumbnail");
   const thumbnail = thumbIdx !== -1 && args[thumbIdx + 1] ? args[thumbIdx + 1] : null;
 
+  const preview = args.includes("--preview");
+
   if (!keyword) {
     console.error('❌ 사용법: npx tsx scripts/generate-post.ts "키워드"');
+    console.error(
+      '   옵션: --preview                    (종목 선정만 미리보기)',
+    );
     console.error(
       '   옵션: --stocks "종목1,종목2,종목3"  (관련주 수동 지정)',
     );
@@ -107,7 +112,7 @@ function parseArgs(): { keyword: string; stocks: readonly string[]; thumbnail: s
     process.exit(1);
   }
 
-  return { keyword, stocks, thumbnail };
+  return { keyword, stocks, thumbnail, preview };
 }
 
 function buildMdx(
@@ -174,9 +179,57 @@ function escapeRegex(str: string): string {
 // ---------------------------------------------------------------------------
 
 async function main(): Promise<void> {
-  const { keyword, stocks: manualStocks, thumbnail: manualThumbnail } = parseArgs();
+  const { keyword, stocks: manualStocks, thumbnail: manualThumbnail, preview } = parseArgs();
 
   console.log(`\n🔍 키워드: "${keyword}"`);
+
+  // -----------------------------------------------------------------------
+  // Preview mode: 종목 선정만 미리보기
+  // -----------------------------------------------------------------------
+  if (preview) {
+    console.log("\n🔎 종목 선정 미리보기 모드...\n");
+
+    const apiKey = loadApiKey();
+    const client = new Anthropic({ apiKey });
+
+    const previewResponse = await client.messages.create({
+      model: MODEL,
+      max_tokens: 1024,
+      system: "당신은 한국 주식 시장 전문 애널리스트입니다.",
+      messages: [{
+        role: "user",
+        content: `"${keyword}" 관련주를 선정해주세요.
+
+## 선정 규칙
+- 한국 상장기업만 (비상장/외국기업/존재하지 않는 기업 절대 금지)
+- 해당 키워드 관련 뉴스/기사에서 "관련주", "수혜주", "테마주"로 실제 언급된 종목만
+- 해당 키워드와 직결되는 사업이 매출의 상당 부분을 차지하는 종목만
+- 삼성전자, 현대차, 기아, LG전자, SK하이닉스, 네이버, 카카오, 현대로템, 포스코홀딩스, 한화에어로스페이스 등 범용 대기업 제외
+- 중소형 전문기업을 절반 이상 포함
+- 5~7개 선정
+
+## 출력 형식 (반드시 이 형식으로)
+각 종목을 아래 형식으로 출력하세요:
+
+1. 종목명 | 분류 | 선정 이유 (1줄)
+2. 종목명 | 분류 | 선정 이유 (1줄)
+...`,
+      }],
+    });
+
+    const previewText = previewResponse.content
+      .filter((block): block is Anthropic.TextBlock => block.type === "text")
+      .map((block) => block.text)
+      .join("\n");
+
+    console.log("📋 선정된 관련주:\n");
+    console.log(previewText);
+    console.log("\n✅ 이 종목들로 글을 작성하려면:");
+    console.log(`   npx tsx scripts/generate-post.ts "${keyword}"`);
+    console.log(`\n🔧 종목을 직접 지정하려면:`);
+    console.log(`   npx tsx scripts/generate-post.ts "${keyword}" --stocks "종목1,종목2,종목3"\n`);
+    return;
+  }
 
   // -----------------------------------------------------------------------
   // Step 1: 관련주 시세 데이터 수집 (수동 지정 또는 1차 Claude 호출 후)
