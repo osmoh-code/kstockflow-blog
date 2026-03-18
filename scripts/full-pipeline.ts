@@ -15,7 +15,7 @@
 
 import { crawlKeywords, type TrendingKeyword } from "./crawl-keywords";
 import { buildPrompt, parseResponse, getCategorySlug, type GeneratedPost } from "./lib/claude-prompt";
-import { getMultipleStockInfo, stockInfoToMarkdown, stockInfoToContext } from "./lib/stock-data";
+import { getMultipleStockInfo, stockSummaryTable, stockPerItemBlocks, stockInfoToContext } from "./lib/stock-data";
 import { findAndDownloadThumbnail } from "./lib/image-search";
 import { execSync } from "child_process";
 import fs from "fs";
@@ -29,6 +29,7 @@ const MAX_POSTS = 3;
 const POSTS_DIR = path.join(process.cwd(), "content", "posts");
 const THUMBNAILS_DIR = path.join(process.cwd(), "public", "images", "thumbnails");
 const MODEL = "claude-sonnet-4-20250514";
+const MAX_TOKENS = 8192;
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://kstockflow.com";
 
 // ---------------------------------------------------------------------------
@@ -118,7 +119,7 @@ async function generateSinglePost(keyword: string): Promise<PipelineResult> {
 
     const response = await client.messages.create({
       model: MODEL,
-      max_tokens: 4096,
+      max_tokens: MAX_TOKENS,
       system,
       messages: [{ role: "user", content: user }],
     });
@@ -131,11 +132,10 @@ async function generateSinglePost(keyword: string): Promise<PipelineResult> {
     const post = parseResponse(rawText, keyword);
 
     // Fetch stock data for related stocks mentioned by Claude
-    let stockMarkdown = "";
+    let stockInfoList: Awaited<ReturnType<typeof getMultipleStockInfo>> = [];
     if (post.relatedStocks.length > 0) {
       console.log(`    📊 관련주 시세 조회: ${post.relatedStocks.join(", ")}`);
-      const stockInfoList = await getMultipleStockInfo(post.relatedStocks);
-      stockMarkdown = stockInfoToMarkdown(stockInfoList);
+      stockInfoList = await getMultipleStockInfo(post.relatedStocks);
     }
 
     // Search and download thumbnail image
@@ -149,7 +149,30 @@ async function generateSinglePost(keyword: string): Promise<PipelineResult> {
     const categorySlug = getCategorySlug(post.category);
 
     let body = post.content;
-    if (stockMarkdown) body += `\n\n${stockMarkdown}`;
+
+    // 시세 데이터 삽입
+    if (stockInfoList.length > 0) {
+      // 요약 테이블을 Claude 테이블 뒤에 삽입
+      const summaryMd = stockSummaryTable(stockInfoList);
+      const sectionIdx = body.indexOf("## 관련주 분석");
+      if (sectionIdx !== -1) {
+        const afterHeader = body.slice(sectionIdx);
+        const tableEndMatch = afterHeader.match(/(\|[^\n]+\|\n)+/);
+        if (tableEndMatch) {
+          const tableEndPos = sectionIdx + (tableEndMatch.index ?? 0) + tableEndMatch[0].length;
+          body = body.slice(0, tableEndPos) + "\n" + summaryMd + "\n" + body.slice(tableEndPos);
+        }
+      }
+
+      // 개별 종목 시세+차트 삽입
+      const perItemBlocks = stockPerItemBlocks(stockInfoList);
+      for (const [stockName, block] of perItemBlocks) {
+        const escaped = stockName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const headingRegex = new RegExp(`(### \\d+\\.\\s*${escaped}[^\n]*)(\n)`, "g");
+        body = body.replace(headingRegex, `$1$2${block}\n`);
+      }
+    }
+
     if (imageCredit) body += `\n\n---\n\n*${imageCredit}*`;
 
     const mdx = `---

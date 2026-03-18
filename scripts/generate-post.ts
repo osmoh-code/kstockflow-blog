@@ -24,7 +24,8 @@ import {
 } from "./lib/claude-prompt";
 import {
   getMultipleStockInfo,
-  stockInfoToMarkdown,
+  stockSummaryTable,
+  stockPerItemBlocks,
   stockInfoToContext,
   type StockInfo,
 } from "./lib/stock-data";
@@ -36,6 +37,7 @@ import { findAndDownloadThumbnail } from "./lib/image-search";
 
 const POSTS_DIR = path.join(process.cwd(), "content", "posts");
 const MODEL = "claude-sonnet-4-20250514";
+const MAX_TOKENS = 8192;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -82,7 +84,7 @@ function todayDate(): string {
   return `${y}-${m}-${d}`;
 }
 
-function parseArgs(): { keyword: string; stocks: readonly string[] } {
+function parseArgs(): { keyword: string; stocks: readonly string[]; thumbnail: string | null } {
   const args = process.argv.slice(2);
   const keyword = args.find((a) => !a.startsWith("--"));
   const stocksIdx = args.indexOf("--stocks");
@@ -91,15 +93,21 @@ function parseArgs(): { keyword: string; stocks: readonly string[] } {
       ? args[stocksIdx + 1].split(",").map((s) => s.trim()).filter(Boolean)
       : [];
 
+  const thumbIdx = args.indexOf("--thumbnail");
+  const thumbnail = thumbIdx !== -1 && args[thumbIdx + 1] ? args[thumbIdx + 1] : null;
+
   if (!keyword) {
     console.error('❌ 사용법: npx tsx scripts/generate-post.ts "키워드"');
     console.error(
       '   옵션: --stocks "종목1,종목2,종목3"  (관련주 수동 지정)',
     );
+    console.error(
+      '   옵션: --thumbnail "이미지파일경로"  (썸네일 직접 지정)',
+    );
     process.exit(1);
   }
 
-  return { keyword, stocks };
+  return { keyword, stocks, thumbnail };
 }
 
 function buildMdx(
@@ -108,16 +116,34 @@ function buildMdx(
   slug: string,
   thumbnailPath: string,
   imageCredit: string,
-  stockMarkdown: string,
+  stockInfoList: readonly StockInfo[],
 ): string {
   const tags = post.tags.map((t) => `"${t}"`).join(", ");
   const categorySlug = getCategorySlug(post.category);
 
   let body = post.content;
 
-  // 관련주 시세 테이블이 있으면 본문 끝에 추가
-  if (stockMarkdown) {
-    body += `\n\n${stockMarkdown}`;
+  if (stockInfoList.length > 0) {
+    // 1. "## 관련주 분석" 섹션의 Claude 테이블 뒤에 시세 요약 테이블 삽입
+    const summaryMd = stockSummaryTable(stockInfoList);
+    const sectionHeader = "## 관련주 분석";
+    const sectionIdx = body.indexOf(sectionHeader);
+    if (sectionIdx !== -1) {
+      const afterHeader = body.slice(sectionIdx);
+      const tableEndMatch = afterHeader.match(/(\|[^\n]+\|\n)+/);
+      if (tableEndMatch) {
+        const tableEndPos = sectionIdx + (tableEndMatch.index ?? 0) + tableEndMatch[0].length;
+        body = body.slice(0, tableEndPos) + "\n" + summaryMd + "\n" + body.slice(tableEndPos);
+      }
+    }
+
+    // 2. 각 "### N. 종목명" 헤딩 바로 뒤에 시세+차트 삽입
+    const perItemBlocks = stockPerItemBlocks(stockInfoList);
+    for (const [stockName, block] of perItemBlocks) {
+      // "### 1. 쎄트렉아이" 또는 "### 2. AP위성" 형태 매칭
+      const headingRegex = new RegExp(`(### \\d+\\.\\s*${escapeRegex(stockName)}[^\n]*)(\n)`, "g");
+      body = body.replace(headingRegex, `$1$2${block}\n`);
+    }
   }
 
   // 이미지 크레딧이 있으면 추가
@@ -139,12 +165,16 @@ ${body}
 `;
 }
 
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 // ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 
 async function main(): Promise<void> {
-  const { keyword, stocks: manualStocks } = parseArgs();
+  const { keyword, stocks: manualStocks, thumbnail: manualThumbnail } = parseArgs();
 
   console.log(`\n🔍 키워드: "${keyword}"`);
 
@@ -172,7 +202,7 @@ async function main(): Promise<void> {
 
   const response = await client.messages.create({
     model: MODEL,
-    max_tokens: 4096,
+    max_tokens: MAX_TOKENS,
     system,
     messages: [{ role: "user", content: user }],
   });
@@ -200,21 +230,38 @@ async function main(): Promise<void> {
     stockInfoList = await getMultipleStockInfo(post.relatedStocks);
   }
 
-  const stockMarkdown = stockInfoToMarkdown(stockInfoList);
-
   // -----------------------------------------------------------------------
   // Step 4: 썸네일 이미지 검색 & 다운로드
   // -----------------------------------------------------------------------
   const date = todayDate();
   const slug = `${date}-${toSlug(keyword)}`;
 
-  const { path: thumbnailPath, credit: imageCredit } =
-    await findAndDownloadThumbnail(keyword, slug);
+  let thumbnailPath: string;
+  let imageCredit: string;
+
+  if (manualThumbnail) {
+    // 사용자가 직접 지정한 썸네일 처리
+    const ext = path.extname(manualThumbnail);
+    const destDir = path.join(process.cwd(), "public", "images", "thumbnails");
+    if (!fs.existsSync(destDir)) fs.mkdirSync(destDir, { recursive: true });
+
+    const destFileName = `${slug}${ext}`;
+    const destPath = path.join(destDir, destFileName);
+    fs.copyFileSync(manualThumbnail, destPath);
+
+    thumbnailPath = `/images/thumbnails/${destFileName}`;
+    imageCredit = "";
+    console.log(`🖼️  수동 썸네일 적용: ${manualThumbnail}`);
+  } else {
+    const result = await findAndDownloadThumbnail(keyword, slug);
+    thumbnailPath = result.path;
+    imageCredit = result.credit;
+  }
 
   // -----------------------------------------------------------------------
   // Step 5: MDX 파일 저장
   // -----------------------------------------------------------------------
-  const mdx = buildMdx(post, date, slug, thumbnailPath, imageCredit, stockMarkdown);
+  const mdx = buildMdx(post, date, slug, thumbnailPath, imageCredit, stockInfoList);
 
   if (!fs.existsSync(POSTS_DIR)) {
     fs.mkdirSync(POSTS_DIR, { recursive: true });

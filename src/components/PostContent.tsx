@@ -1,5 +1,8 @@
 import { remark } from "remark";
-import html from "remark-html";
+import remarkGfm from "remark-gfm";
+import remarkRehype from "remark-rehype";
+import rehypeRaw from "rehype-raw";
+import rehypeStringify from "rehype-stringify";
 import {
   generateArticleStructuredData,
 } from "@/lib/seo";
@@ -56,7 +59,12 @@ function insertAdsAfterHeadings(htmlContent: string): string {
 }
 
 export default async function PostContent({ content, meta }: PostContentProps) {
-  const processed = await remark().use(html).process(content);
+  const processed = await remark()
+    .use(remarkGfm)
+    .use(remarkRehype, { allowDangerousHtml: true })
+    .use(rehypeRaw)
+    .use(rehypeStringify)
+    .process(content);
   let htmlContent = processed.toString();
 
   htmlContent = addIdsToHeadings(htmlContent);
