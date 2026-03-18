@@ -2,7 +2,7 @@
  * 키워드 기반 썸네일 이미지 자동 검색
  * - Unsplash API (무료, 월 50회)
  * - Pixabay API (무료, 월 5000회) — fallback
- * - 네이버 이미지 검색 — 추가 fallback
+ * - Pexels API (무료, 월 200회) — 2nd fallback
  */
 
 interface ImageResult {
@@ -17,61 +17,108 @@ interface ImageResult {
   readonly downloadUrl: string;
 }
 
-// 주식 관련 키워드를 영어로 매핑 (Unsplash는 영어 검색이 효과적)
+// 주식 관련 키워드를 영어로 매핑 (검색 엔진은 영어가 효과적)
 const KEYWORD_TRANSLATIONS: Record<string, string> = {
-  주식: "stock market",
-  증시: "stock exchange",
-  투자: "investment",
-  반도체: "semiconductor chip",
-  AI: "artificial intelligence",
-  배터리: "battery technology",
-  전기차: "electric vehicle",
-  바이오: "biotechnology",
-  제약: "pharmaceutical",
-  건설: "construction building",
+  // 산업/섹터
+  주식: "stock market trading",
+  증시: "stock exchange trading floor",
+  투자: "investment finance",
+  반도체: "semiconductor chip wafer",
+  AI: "artificial intelligence technology",
+  배터리: "battery technology lithium",
+  전기차: "electric vehicle EV",
+  바이오: "biotechnology laboratory",
+  제약: "pharmaceutical medicine",
+  건설: "construction building crane",
   은행: "banking finance",
-  에너지: "energy power",
-  IT: "technology",
-  자동차: "automobile car",
-  조선: "shipbuilding",
-  철강: "steel industry",
+  에너지: "energy power plant",
+  IT: "technology computer",
+  자동차: "automobile car factory",
+  조선: "shipbuilding shipyard",
+  철강: "steel industry factory",
   화학: "chemical industry",
-  통신: "telecommunications",
-  유통: "retail commerce",
-  게임: "gaming",
+  통신: "telecommunications 5G tower",
+  유통: "retail commerce shopping",
+  게임: "gaming esports",
   엔터: "entertainment media",
-  방산: "defense military",
   원전: "nuclear power plant",
-  수소: "hydrogen energy",
-  로봇: "robot automation",
-  우주: "space aerospace",
-  드론: "drone technology",
-  메타버스: "metaverse virtual reality",
-  블록체인: "blockchain crypto",
-  클라우드: "cloud computing",
-  실적: "financial report earnings",
-  IPO: "IPO stock market",
-  상장: "IPO listing",
+  수소: "hydrogen energy fuel cell",
+  로봇: "robot automation industrial",
+  우주: "space aerospace rocket",
+  블록체인: "blockchain cryptocurrency",
+  클라우드: "cloud computing server",
+  실적: "financial report earnings chart",
+  IPO: "IPO stock market bell",
+  상장: "IPO listing stock exchange",
   공모주: "IPO stock market",
+  // 방산/군사
+  방산: "defense military weapons",
+  드론: "military drone UAV",
+  전쟁: "military warfare defense",
+  미사일: "missile defense system",
+  무기: "weapons defense military",
+  탄약: "ammunition military",
+  해군: "navy warship",
+  공군: "air force fighter jet",
+  // 지역/지정학
+  호르무즈: "oil tanker strait ocean",
+  중동: "middle east oil refinery",
+  이란: "oil tanker persian gulf",
+  우크라이나: "military defense europe",
+  NATO: "NATO military alliance",
+  // 테크
+  "6G": "6G wireless technology antenna",
+  "5G": "5G telecommunications tower",
+  HBM: "semiconductor memory chip",
+  GPU: "graphics processor chip",
+  양자컴퓨터: "quantum computing technology",
+  메타버스: "metaverse virtual reality",
+  자율주행: "autonomous driving car sensor",
+  // 에너지/자원
+  석유: "oil refinery petroleum",
+  천연가스: "natural gas LNG tanker",
+  태양광: "solar panel energy",
+  풍력: "wind turbine energy",
+  리튬: "lithium mining battery",
+  희토류: "rare earth mining minerals",
+  // 기타
+  부동산: "real estate building city",
+  금리: "interest rate federal reserve",
+  환율: "currency exchange forex",
+  인플레이션: "inflation economy chart",
+  경기침체: "recession economy graph",
+  식품: "food industry agriculture",
+  화장품: "cosmetics beauty industry",
+  의류: "fashion clothing textile",
+  물류: "logistics shipping container",
+  항공: "aviation airplane airport",
+  관광: "tourism travel",
+  교육: "education technology",
+  보험: "insurance finance",
+  증권: "securities brokerage trading",
+  // 엔비디아/GTC
+  엔비디아: "nvidia GPU technology",
+  GTC: "nvidia GTC conference technology",
 };
 
+/**
+ * 키워드에서 영어 검색어 추출. 여러 매핑이 매치되면 합침.
+ */
 function translateKeyword(keyword: string): string {
-  // 키워드에서 한국어 부분을 영어로 변환
-  let translated = keyword;
+  const matches: string[] = [];
 
   for (const [ko, en] of Object.entries(KEYWORD_TRANSLATIONS)) {
     if (keyword.includes(ko)) {
-      translated = en;
-      break;
+      matches.push(en);
     }
   }
 
-  // 변환이 안 됐으면 기본 stock market 키워드 추가
-  if (translated === keyword) {
-    translated = `${keyword} stock market korea`;
+  if (matches.length > 0) {
+    // 최대 2개 매핑 합쳐서 더 정확한 검색
+    return matches.slice(0, 2).join(" ");
   }
 
-  return translated;
+  return `${keyword} stock market korea`;
 }
 
 /**
@@ -104,7 +151,6 @@ async function searchUnsplash(
       return null;
     }
 
-    // 가장 관련성 높은 이미지 선택 (1200px 이상 우선)
     const photo = data.results[0];
 
     return {
@@ -125,7 +171,7 @@ async function searchUnsplash(
 }
 
 /**
- * Pixabay API로 이미지 검색 (Unsplash fallback)
+ * Pixabay API로 이미지 검색
  */
 async function searchPixabay(
   keyword: string,
@@ -135,7 +181,7 @@ async function searchPixabay(
 
   try {
     const response = await fetch(
-      `https://pixabay.com/api/?key=${apiKey}&q=${encodeURIComponent(query)}&image_type=photo&orientation=horizontal&min_width=1200&per_page=5&safesearch=true`
+      `https://pixabay.com/api/?key=${apiKey}&q=${encodeURIComponent(query)}&image_type=photo&orientation=horizontal&min_width=1200&per_page=3&safesearch=true`
     );
 
     if (!response.ok) {
@@ -163,6 +209,55 @@ async function searchPixabay(
     };
   } catch (error) {
     console.warn(`  ⚠️ Pixabay 검색 실패:`, error);
+    return null;
+  }
+}
+
+/**
+ * Pexels API로 이미지 검색
+ */
+async function searchPexels(
+  keyword: string,
+  apiKey: string
+): Promise<ImageResult | null> {
+  const query = translateKeyword(keyword);
+
+  try {
+    const response = await fetch(
+      `https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&per_page=5&orientation=landscape`,
+      {
+        headers: {
+          Authorization: apiKey,
+        },
+      }
+    );
+
+    if (!response.ok) {
+      console.warn(`  ⚠️ Pexels API 응답 오류: ${response.status}`);
+      return null;
+    }
+
+    const data = await response.json();
+
+    if (!data.photos || data.photos.length === 0) {
+      return null;
+    }
+
+    const photo = data.photos[0];
+
+    return {
+      url: photo.src.large2x ?? photo.src.large,
+      thumbnailUrl: photo.src.medium,
+      width: photo.width,
+      height: photo.height,
+      alt: photo.alt ?? `${keyword} 관련 이미지`,
+      source: "Pexels",
+      photographerName: photo.photographer,
+      photographerUrl: photo.photographer_url,
+      downloadUrl: photo.src.original,
+    };
+  } catch (error) {
+    console.warn(`  ⚠️ Pexels 검색 실패:`, error);
     return null;
   }
 }
@@ -205,15 +300,17 @@ async function downloadImage(
 
 /**
  * 메인: 키워드로 썸네일 검색 → 다운로드 → 경로 반환
+ * 검색 순서: Unsplash → Pixabay → Pexels → 기본 이미지
  */
 export async function findAndDownloadThumbnail(
   keyword: string,
   slug: string
 ): Promise<{ path: string; credit: string }> {
-  console.log(`\n🖼️  썸네일 검색: "${keyword}"`);
+  console.log(`\n🖼️  썸네일 검색: "${keyword}" → "${translateKeyword(keyword)}"`);
 
   const unsplashKey = process.env.UNSPLASH_ACCESS_KEY;
   const pixabayKey = process.env.PIXABAY_API_KEY;
+  const pexelsKey = process.env.PEXELS_API_KEY;
 
   let image: ImageResult | null = null;
 
@@ -235,7 +332,16 @@ export async function findAndDownloadThumbnail(
     }
   }
 
-  // 3. 이미지를 찾지 못한 경우
+  // 3. Pexels fallback
+  if (!image && pexelsKey) {
+    console.log(`  🔍 Pexels 검색 중...`);
+    image = await searchPexels(keyword, pexelsKey);
+    if (image) {
+      console.log(`  ✅ Pexels에서 발견: ${image.photographerName}`);
+    }
+  }
+
+  // 4. 이미지를 찾지 못한 경우
   if (!image) {
     console.log(`  ℹ️ 관련 이미지를 찾지 못했습니다. 기본 썸네일을 사용합니다.`);
     return {
@@ -244,7 +350,7 @@ export async function findAndDownloadThumbnail(
     };
   }
 
-  // 4. 이미지 다운로드
+  // 5. 이미지 다운로드
   const savedPath = await downloadImage(image.url, slug);
 
   const credit = `Photo by [${image.photographerName}](${image.photographerUrl}) on ${image.source}`;

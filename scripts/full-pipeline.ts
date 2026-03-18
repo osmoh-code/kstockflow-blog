@@ -60,14 +60,26 @@ interface PipelineReport {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function loadEnvVar(key: string): string | null {
-  // Try .env.local
+function loadAllEnvFromFile(): void {
   const envPath = path.join(process.cwd(), ".env.local");
-  if (fs.existsSync(envPath)) {
-    const content = fs.readFileSync(envPath, "utf-8");
-    const match = content.match(new RegExp(`^${key}=(.+)$`, "m"));
-    if (match) return match[1].trim().replace(/^"(.*)"$/, "$1");
+  if (!fs.existsSync(envPath)) return;
+  const raw = fs.readFileSync(envPath, "utf-8");
+  for (const line of raw.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const eqIdx = trimmed.indexOf("=");
+    if (eqIdx === -1) continue;
+    const key = trimmed.slice(0, eqIdx).trim();
+    const val = trimmed.slice(eqIdx + 1).trim().replace(/^"(.*)"$/, "$1");
+    if (key && !process.env[key]) {
+      process.env[key] = val;
+    }
   }
+}
+
+loadAllEnvFromFile();
+
+function loadEnvVar(key: string): string | null {
   return process.env[key] ?? null;
 }
 

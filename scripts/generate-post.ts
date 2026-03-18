@@ -44,14 +44,27 @@ const MAX_TOKENS = 8192;
 // Helpers
 // ---------------------------------------------------------------------------
 
-function loadEnvValue(key: string): string | undefined {
-  // Try .env.local first
+function loadAllEnvFromFile(): void {
   const envPath = path.join(process.cwd(), ".env.local");
-  if (fs.existsSync(envPath)) {
-    const envContent = fs.readFileSync(envPath, "utf-8");
-    const match = envContent.match(new RegExp(`^${key}=(.+)$`, "m"));
-    if (match) return match[1].trim();
+  if (!fs.existsSync(envPath)) return;
+  const content = fs.readFileSync(envPath, "utf-8");
+  for (const line of content.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const eqIdx = trimmed.indexOf("=");
+    if (eqIdx === -1) continue;
+    const key = trimmed.slice(0, eqIdx).trim();
+    const val = trimmed.slice(eqIdx + 1).trim().replace(/^"(.*)"$/, "$1");
+    if (key && !process.env[key]) {
+      process.env[key] = val;
+    }
   }
+}
+
+// Load .env.local into process.env at startup
+loadAllEnvFromFile();
+
+function loadEnvValue(key: string): string | undefined {
   return process.env[key];
 }
 
