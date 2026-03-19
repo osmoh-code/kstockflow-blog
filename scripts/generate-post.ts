@@ -30,7 +30,7 @@ import {
   stockInfoToContext,
   type StockInfo,
 } from "./lib/stock-data";
-import { findAndDownloadThumbnail, generateFeaturedStocksThumbnail, downloadCompanyLogo } from "./lib/image-search";
+import { findAndDownloadThumbnail, generateFeaturedStocksThumbnail, generateNewStocksThumbnail } from "./lib/image-search";
 import { searchNews, newsToContext } from "./lib/news-search";
 
 // ---------------------------------------------------------------------------
@@ -437,8 +437,8 @@ async function main(): Promise<void> {
     thumbnailPath = result.path;
     imageCredit = result.credit;
   } else if (categoryOverride === "new-stocks") {
-    // 신규상장주: 회사 로고 또는 관련 이미지
-    const result = await downloadCompanyLogo(keyword, slug);
+    // 신규상장주: 회사명 + IPO 텍스트 오버레이 썸네일 자체 생성
+    const result = await generateNewStocksThumbnail(keyword, slug);
     thumbnailPath = result.path;
     imageCredit = result.credit;
   } else {

@@ -413,43 +413,77 @@ export async function generateFeaturedStocksThumbnail(
 }
 
 // ---------------------------------------------------------------------------
-// 신규상장주 전용 썸네일: 회사 로고 검색 → 다운로드
-// Google Favicon API 또는 회사명 검색으로 로고 획득
+// 신규상장주 전용 썸네일: 회사명 + IPO 텍스트 오버레이 (Sharp 자체 생성)
+// 회사 로고는 스톡사이트에 없으므로, 텍스트 기반 썸네일을 직접 생성
 // ---------------------------------------------------------------------------
 
-export async function downloadCompanyLogo(
+export async function generateNewStocksThumbnail(
   companyName: string,
   slug: string,
 ): Promise<{ path: string; credit: string }> {
   const fs = await import("fs");
-  const path = await import("path");
+  const pathMod = await import("path");
+  const sharp = (await import("sharp")).default;
 
-  const dir = path.join(process.cwd(), "public", "images", "thumbnails");
+  const dir = pathMod.join(process.cwd(), "public", "images", "thumbnails");
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
 
-  console.log(`\n🏢 회사 로고 검색: "${companyName}"`);
+  const outPath = pathMod.join(dir, `${slug}.jpg`);
+  const publicPath = `/images/thumbnails/${slug}.jpg`;
 
-  // 1차: 회사명으로 Unsplash/Pixabay에서 회사 관련 이미지 검색
-  const searchQuery = `${companyName} company logo`;
-  const image = await searchAllApis(searchQuery);
+  console.log(`\n🏢 신규상장주 썸네일 생성: "${companyName}"`);
 
-  if (image) {
-    const savedPath = await downloadImage(image.url, slug);
-    console.log(`  ✅ 회사 관련 이미지 저장`);
-    return { path: savedPath, credit: `Photo by [${image.photographerName}](${image.photographerUrl}) on ${image.source}` };
+  // 회사명 길이에 따라 폰트 크기 동적 조정
+  const nameLen = companyName.length;
+  const nameFontSize = nameLen <= 6 ? 72 : nameLen <= 9 ? 60 : nameLen <= 12 ? 50 : 42;
+
+  // 그라디언트 배경 + 회사명 + 신규상장 텍스트 오버레이
+  const svgContent = `
+    <svg width="1200" height="630" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:#0f0c29"/>
+          <stop offset="50%" style="stop-color:#302b63"/>
+          <stop offset="100%" style="stop-color:#24243e"/>
+        </linearGradient>
+        <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" style="stop-color:#00d2ff"/>
+          <stop offset="100%" style="stop-color:#3a7bd5"/>
+        </linearGradient>
+      </defs>
+      <rect width="1200" height="630" fill="url(#bg)"/>
+      <!-- 장식 원 -->
+      <circle cx="100" cy="100" r="200" fill="rgba(0,210,255,0.05)"/>
+      <circle cx="1100" cy="530" r="250" fill="rgba(58,123,213,0.05)"/>
+      <!-- 상단 배지 -->
+      <rect x="440" y="120" width="320" height="42" rx="21" fill="url(#accent)" opacity="0.9"/>
+      <text x="600" y="148" text-anchor="middle" font-family="Arial, sans-serif" font-size="22" font-weight="bold" fill="white" letter-spacing="4">NEW IPO LISTING</text>
+      <!-- 회사명 -->
+      <text x="600" y="290" text-anchor="middle" font-family="Arial, sans-serif" font-size="${nameFontSize}" font-weight="bold" fill="white" letter-spacing="3">${companyName}</text>
+      <!-- 구분선 -->
+      <rect x="400" y="320" width="400" height="3" rx="2" fill="url(#accent)"/>
+      <!-- 신규상장 분석 -->
+      <text x="600" y="380" text-anchor="middle" font-family="Arial, sans-serif" font-size="36" font-weight="bold" fill="#00d2ff" letter-spacing="6">신규상장 분석</text>
+      <!-- 하단 부제 -->
+      <text x="600" y="440" text-anchor="middle" font-family="Arial, sans-serif" font-size="24" fill="rgba(255,255,255,0.7)">공모가 · 재무 · 유통물량 · 투자포인트 총정리</text>
+      <!-- 브랜드 -->
+      <text x="600" y="560" text-anchor="middle" font-family="Arial, sans-serif" font-size="18" fill="rgba(255,255,255,0.4)" letter-spacing="2">KStockFlow.com</text>
+    </svg>`;
+
+  try {
+    await sharp(Buffer.from(svgContent))
+      .resize(1200, 630)
+      .jpeg({ quality: 90 })
+      .toFile(outPath);
+
+    console.log(`  ✅ 신규상장주 썸네일 생성: ${publicPath}`);
+    return { path: publicPath, credit: "" };
+  } catch (error) {
+    console.warn(`  ⚠️ 썸네일 생성 실패:`, error);
+    return { path: "/images/og-default.png", credit: "" };
   }
-
-  // 2차: 업종 관련 이미지로 대체
-  console.log(`  🔎 회사 로고 미발견, 업종 관련 이미지로 대체...`);
-  const fallbackImage = await searchAllApis("IPO stock market listing bell");
-  if (fallbackImage) {
-    const savedPath = await downloadImage(fallbackImage.url, slug);
-    return { path: savedPath, credit: `Photo by [${fallbackImage.photographerName}](${fallbackImage.photographerUrl}) on ${fallbackImage.source}` };
-  }
-
-  return { path: "/images/og-default.png", credit: "" };
 }
 
 // ---------------------------------------------------------------------------
