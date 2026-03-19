@@ -14,6 +14,12 @@ export default function HomePage() {
   const featuredPost = allPosts.length > 0 ? allPosts[0] : null;
   const remainingPosts = allPosts.slice(1);
 
+  // 카테고리별 최신글 그룹핑 (왼쪽: 주식특징주, 중간: 핫이슈, 오른쪽: 신규주분석)
+  const columnCategories = ["featured-stocks", "hot-issues", "new-stocks"] as const;
+  const postsByCategory = columnCategories.map((cat) =>
+    allPosts.filter((p) => p.meta.category === cat).slice(0, 2)
+  );
+
   return (
     <>
       <script
@@ -46,12 +52,16 @@ export default function HomePage() {
               </Link>
             </div>
 
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3">
-              {remainingPosts.map((post) => (
-                <BlogCard
-                  key={post.meta.slug}
-                  post={post.meta}
-                />
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3 items-start">
+              {postsByCategory.map((posts, colIdx) => (
+                <div key={columnCategories[colIdx]} className="flex flex-col gap-6">
+                  {posts.map((post) => (
+                    <BlogCard
+                      key={post.meta.slug}
+                      post={post.meta}
+                    />
+                  ))}
+                </div>
               ))}
             </div>
 
