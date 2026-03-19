@@ -93,7 +93,7 @@ export function generateOrganizationStructuredData(): string {
       url: `${SITE_URL}/images/logo.png`,
     },
     description:
-      "한국 주식 시장의 특징주, 핫이슈, 신규주 분석, 재료와 테마 뉴스를 한눈에. 재료 기반의 깊이 있는 시장 인사이트를 제공합니다.",
+      "한국 주식 시장의 특징주, 핫이슈, 신규 상장주, 재료와 테마 뉴스를 한눈에. 재료 기반의 깊이 있는 시장 인사이트를 제공합니다.",
     sameAs: [],
   };
 

@@ -413,6 +413,46 @@ export async function generateFeaturedStocksThumbnail(
 }
 
 // ---------------------------------------------------------------------------
+// 신규상장주 전용 썸네일: 회사 로고 검색 → 다운로드
+// Google Favicon API 또는 회사명 검색으로 로고 획득
+// ---------------------------------------------------------------------------
+
+export async function downloadCompanyLogo(
+  companyName: string,
+  slug: string,
+): Promise<{ path: string; credit: string }> {
+  const fs = await import("fs");
+  const path = await import("path");
+
+  const dir = path.join(process.cwd(), "public", "images", "thumbnails");
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+
+  console.log(`\n🏢 회사 로고 검색: "${companyName}"`);
+
+  // 1차: 회사명으로 Unsplash/Pixabay에서 회사 관련 이미지 검색
+  const searchQuery = `${companyName} company logo`;
+  const image = await searchAllApis(searchQuery);
+
+  if (image) {
+    const savedPath = await downloadImage(image.url, slug);
+    console.log(`  ✅ 회사 관련 이미지 저장`);
+    return { path: savedPath, credit: `Photo by [${image.photographerName}](${image.photographerUrl}) on ${image.source}` };
+  }
+
+  // 2차: 업종 관련 이미지로 대체
+  console.log(`  🔎 회사 로고 미발견, 업종 관련 이미지로 대체...`);
+  const fallbackImage = await searchAllApis("IPO stock market listing bell");
+  if (fallbackImage) {
+    const savedPath = await downloadImage(fallbackImage.url, slug);
+    return { path: savedPath, credit: `Photo by [${fallbackImage.photographerName}](${fallbackImage.photographerUrl}) on ${fallbackImage.source}` };
+  }
+
+  return { path: "/images/og-default.png", credit: "" };
+}
+
+// ---------------------------------------------------------------------------
 // 메인: 키워드 → 이미지 검색 → 다운로드
 // 전략: primary 쿼리로 3개 API 시도 → 실패 시 fallback 쿼리로 재시도
 // ---------------------------------------------------------------------------

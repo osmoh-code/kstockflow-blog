@@ -26,7 +26,7 @@ export interface PromptPair {
 export type CategorySlugType = "featured-stocks" | "hot-issues" | "new-stocks" | "theme-news";
 
 // ---------------------------------------------------------------------------
-// Category detection keywords (updated: 신규주 분석, 재료와 테마 뉴스)
+// Category detection keywords (updated: 신규 상장주, 재료와 테마 뉴스)
 // ---------------------------------------------------------------------------
 
 const CATEGORY_KEYWORDS: Record<string, readonly string[]> = {
@@ -36,7 +36,7 @@ const CATEGORY_KEYWORDS: Record<string, readonly string[]> = {
   "핫이슈": [
     "이슈", "뉴스", "속보", "논란", "사건", "이벤트", "화제",
   ],
-  "신규주 분석": [
+  "신규 상장주": [
     "신규", "IPO", "상장", "공모주", "청약", "신규상장", "스팩",
   ],
   "재료와 테마 뉴스": [
@@ -49,7 +49,7 @@ const CATEGORY_KEYWORDS: Record<string, readonly string[]> = {
 const CATEGORY_SLUGS: Record<string, string> = {
   "주식특징주": "featured-stocks",
   "핫이슈": "hot-issues",
-  "신규주 분석": "new-stocks",
+  "신규 상장주": "new-stocks",
   "재료와 테마 뉴스": "theme-news",
 };
 
@@ -208,6 +208,164 @@ const FEATURED_STOCKS_SYSTEM_PROMPT = `당신은 한국 주식 시장 전문 애
 - 확정적 수익률 보장 표현
 - 허위/과장 정보
 `;
+
+// ---------------------------------------------------------------------------
+// 신규 상장주 전용 시스템 프롬프트
+// ---------------------------------------------------------------------------
+
+const NEW_STOCKS_SYSTEM_PROMPT = `당신은 한국 IPO(신규 상장) 전문 애널리스트이자 금융 블로그 작가입니다.
+
+## 역할
+- 신규 상장 종목의 공모 분석, 사업 분석, 재무 분석, 투자 포인트를 제공합니다.
+- 개인 투자자가 상장일 전후 투자 판단을 내릴 수 있도록 심층 분석을 제공합니다.
+- 38.co.kr 공모 데이터와 최신 뉴스를 기반으로 정확한 정보를 전달합니다.
+
+## 중요: 데이터 기반 작성
+- 제공된 38.co.kr 공모 데이터를 반드시 활용하세요.
+- 제공된 뉴스 기사 내용을 참고하여 최신 동향을 반영하세요.
+- 확인되지 않은 정보는 추측임을 명시하세요.
+
+## 글쓰기 스타일
+- 자연스러운 서술형 어투: "~입니다", "~볼 수 있습니다" 등 전문적이면서도 읽기 편한 톤
+- 짧은 문단: 한 문단 2-3문장, 가독성 최우선
+- 볼드(별표 두개)는 절대 사용 금지. 강조는 <mark>태그</mark>만 사용
+- 하이라이트는 문단당 최대 1~2개만
+- 표(테이블) 적극 활용: 재무데이터, 공모현황, 주주현황 등
+
+## 콘텐츠 품질 기준
+- 본문 최소 4,000자(한글 기준) 이상
+- 독창적 분석: 단순 사실 나열이 아닌 심층 분석
+- 구체적 데이터: 수치, 비율, 전년 대비 변화율 포함
+- 투자 면책 고지 포함
+
+## 절대 금지 사항
+- 특정 종목 매수/매도 직접 권유
+- 확정적 수익률 보장 표현
+- 허위/과장 정보
+- 클릭베이트 제목
+`;
+
+// ---------------------------------------------------------------------------
+// 신규 상장주 전용 유저 프롬프트 빌더
+// ---------------------------------------------------------------------------
+
+function buildNewStocksUserPrompt(
+  keyword: string,
+  ipoData?: string,
+  newsContext?: string,
+): string {
+  const today = new Date().toISOString().slice(0, 10);
+
+  let prompt = `아래 종목의 신규 상장(IPO) 분석 블로그 포스트를 작성해 주세요.
+
+**오늘 날짜**: ${today}
+**종목/키워드**: ${keyword}
+`;
+
+  if (ipoData) {
+    prompt += `
+## 참고: 38.co.kr 공모 데이터
+${ipoData}
+`;
+  }
+
+  if (newsContext) {
+    prompt += `
+## 참고: 관련 최신 뉴스
+${newsContext}
+`;
+  }
+
+  prompt += `
+## 필수 출력 형식
+
+---FRONTMATTER---
+title: ${keyword} 상장 분석 | 공모가·재무·투자포인트 총정리
+description: (150-160자, 종목명과 핵심 투자포인트를 포함한 메타 설명)
+category: 신규 상장주
+tags: ${keyword}, ${keyword} 상장, ${keyword} 공모, 신규상장, IPO 분석
+related_stocks: ${keyword}
+---CONTENT---
+
+## 필수 본문 구조 (이 순서를 반드시 따르세요)
+
+⚠️ 중요: 모든 H2(##) 제목에 "${keyword}" 종목명을 포함하세요!
+
+1. **## ${keyword} 공모 현황**
+   - 마크다운 테이블로 공모 정보 정리:
+     | 항목 | 내용 |
+     |------|------|
+     | 종목명 | |
+     | 종목코드 | |
+     | 상장시장 | 코스닥/코스피 |
+     | 공모가 | |
+     | 공모주식수 | |
+     | 공모금액 | |
+     | 수요예측일 | |
+     | 청약일 | |
+     | 상장예정일 | |
+     | 주간사 | |
+   - 수요예측 경쟁률, 의무보유확약 비율 등 있으면 포함
+   - 공모가 산정 방식과 밴드 대비 확정가 위치 분석
+
+2. **## ${keyword} 사업 및 산업 분석**
+   - 회사가 하는 사업을 상세히 설명 (3-4문단)
+   - 속한 산업의 시장 규모, 성장률, 트렌드
+   - 경쟁사 대비 포지셔닝, 기술 경쟁력
+   - 주요 제품/서비스, 매출 구성
+
+3. **## ${keyword} 주요 재무 분석**
+   - 마크다운 테이블로 최근 3개년 재무 정리:
+     | 구분 | 2022 | 2023 | 2024 |
+     |------|------|------|------|
+     | 매출액 | | | |
+     | 영업이익 | | | |
+     | 당기순이익 | | | |
+     | 영업이익률 | | | |
+   - 매출 성장률, 수익성, 현금흐름 분석
+   - 적자 기업이면 적자 원인과 흑자 전환 가능성 분석
+
+4. **## ${keyword} 주주 현황**
+   - 최대주주 및 특수관계인 지분율
+   - 주요 기관투자자(VC/PE) 지분 현황
+   - 경영진 지분 보유 현황
+
+5. **## ${keyword} 유통주식 및 보호예수 물량 분석**
+   - 상장 직후 유통 가능 물량 vs 보호예수 물량
+   - 보호예수 해제 일정 (1개월, 3개월, 6개월, 1년 등)
+   - 유통 비율이 투자에 미치는 영향 분석
+   - 오버행(잠재 매도 물량) 리스크 평가
+
+6. **## ${keyword} 투자 포인트**
+   - 3-5개의 핵심 투자 매력 포인트
+   - 각 포인트별 근거와 구체적 수치 포함
+   - ✔ 체크리스트 형식 활용
+
+7. **## ${keyword} 리스크 포인트**
+   - 3-5개의 주요 리스크 요인
+   - 각 리스크의 영향도와 발생 가능성
+   - ⚠️ 경고 형식 활용
+
+8. **## ${keyword} 상장 전망 및 결론**
+   - 종합 분석 요약
+   - 상장일 예상 시나리오 (상/중/하)
+   - 투자 면책 고지: "> ※ 본 글은 정보 제공을 목적으로 하며, 투자의 책임은 투자자 본인에게 있습니다."
+
+9. **## 자주 묻는 질문** (FAQ — 구글 리치 스니펫용)
+   - 3~5개의 Q&A
+   - ### Q. ${keyword} 공모가는 얼마인가요?
+   - ### Q. ${keyword} 상장일은 언제인가요?
+   - ### Q. ${keyword} 투자 시 주의할 점은?
+   등
+
+## 추가 지침
+- 전체 본문 최소 4,000자 이상
+- 볼드 절대 금지, mark 태그만 사용
+- tags에 롱테일 키워드 포함
+- 내부 링크 유도: "다른 신규 상장주 분석도 함께 참고하시기 바랍니다." 등`;
+
+  return prompt;
+}
 
 // ---------------------------------------------------------------------------
 // 주식특징주 전용 유저 프롬프트 빌더
@@ -390,6 +548,14 @@ export function buildPrompt(
     };
   }
 
+  // 신규 상장주 카테고리: 전용 프롬프트 사용
+  if (categorySlug === "new-stocks") {
+    return {
+      system: NEW_STOCKS_SYSTEM_PROMPT,
+      user: buildNewStocksUserPrompt(keyword, stockContext),
+    };
+  }
+
   // 기본: 기존 핫이슈/테마뉴스 등 프롬프트
   const category = categorySlug
     ? getCategoryName(categorySlug)
@@ -443,9 +609,9 @@ export function parseResponse(
     ? getCategoryName(categorySlug)
     : categoryFromResponse || detectCategory(keyword);
 
-  // 제목: 주식특징주는 Claude 응답 제목 사용, 그 외는 기존 형식
+  // 제목: 카테고리별 제목 형식
   let title: string;
-  if (categorySlug === "featured-stocks") {
+  if (categorySlug === "featured-stocks" || categorySlug === "new-stocks") {
     title = getValue("title") || keyword;
   } else {
     const stockCount = relatedStocks.length || 5;

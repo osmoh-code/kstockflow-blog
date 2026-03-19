@@ -30,7 +30,7 @@ import {
   stockInfoToContext,
   type StockInfo,
 } from "./lib/stock-data";
-import { findAndDownloadThumbnail, generateFeaturedStocksThumbnail } from "./lib/image-search";
+import { findAndDownloadThumbnail, generateFeaturedStocksThumbnail, downloadCompanyLogo } from "./lib/image-search";
 import { searchNews, newsToContext } from "./lib/news-search";
 
 // ---------------------------------------------------------------------------
@@ -115,6 +115,7 @@ function parseArgs(): {
   preview: boolean;
   category: CategorySlugType | null;
   dataFile: string | null;
+  ipoUrl: string | null;
 } {
   const args = process.argv.slice(2);
   const keyword = args.find((a) => !a.startsWith("--"));
@@ -137,6 +138,9 @@ function parseArgs(): {
   const dataIdx = args.indexOf("--data-file");
   const dataFile = dataIdx !== -1 && args[dataIdx + 1] ? args[dataIdx + 1] : null;
 
+  const ipoIdx = args.indexOf("--ipo-url");
+  const ipoUrl = ipoIdx !== -1 && args[ipoIdx + 1] ? args[ipoIdx + 1] : null;
+
   const preview = args.includes("--preview");
 
   if (!keyword) {
@@ -154,7 +158,10 @@ function parseArgs(): {
       '   옵션: --category "featured-stocks" (카테고리 지정: featured-stocks, hot-issues, new-stocks, theme-news)',
     );
     console.error(
-      '   옵션: --data-file "파일경로"       (특징주 데이터 파일, --category featured-stocks와 함께 사용)',
+      '   옵션: --data-file "파일경로"       (특징주 데이터 파일)',
+    );
+    console.error(
+      '   옵션: --ipo-url "38.co.kr URL"    (신규상장주 공모 데이터 URL)',
     );
     process.exit(1);
   }
@@ -165,7 +172,38 @@ function parseArgs(): {
     process.exit(1);
   }
 
-  return { keyword, stocks, thumbnail, preview, category, dataFile };
+  return { keyword, stocks, thumbnail, preview, category, dataFile, ipoUrl };
+}
+
+// ---------------------------------------------------------------------------
+// 38.co.kr IPO 데이터 크롤링
+// ---------------------------------------------------------------------------
+
+async function fetch38Data(url: string): Promise<string> {
+  console.log(`\n📋 38.co.kr 공모 데이터 가져오는 중...`);
+  try {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const html = await response.text();
+
+    // HTML에서 텍스트 추출 (간단한 태그 제거)
+    const text = html
+      .replace(/<script[\s\S]*?<\/script>/gi, "")
+      .replace(/<style[\s\S]*?<\/style>/gi, "")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/&nbsp;/g, " ")
+      .replace(/&amp;/g, "&")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    console.log(`  ✅ 38.co.kr 데이터 로드 완료 (${text.length}자)`);
+    return text.slice(0, 8000); // Claude 컨텍스트 제한 고려
+  } catch (error) {
+    console.warn(`  ⚠️ 38.co.kr 접근 실패:`, error);
+    return "";
+  }
 }
 
 function buildMdx(
@@ -232,7 +270,7 @@ function escapeRegex(str: string): string {
 // ---------------------------------------------------------------------------
 
 async function main(): Promise<void> {
-  const { keyword, stocks: manualStocks, thumbnail: manualThumbnail, preview, category: categoryOverride, dataFile } = parseArgs();
+  const { keyword, stocks: manualStocks, thumbnail: manualThumbnail, preview, category: categoryOverride, dataFile, ipoUrl } = parseArgs();
 
   console.log(`\n🔍 키워드: "${keyword}"`);
 
@@ -312,7 +350,7 @@ async function main(): Promise<void> {
   const apiKey = loadApiKey();
   const client = new Anthropic({ apiKey });
 
-  // 주식특징주 카테고리: --data-file에서 데이터 로드
+  // 카테고리별 데이터 로드
   let dataFileContent = "";
   if (dataFile) {
     if (!fs.existsSync(dataFile)) {
@@ -322,10 +360,21 @@ async function main(): Promise<void> {
     console.log(`📄 데이터 파일 로드: ${dataFile} (${dataFileContent.length}자)`);
   }
 
-  // 주식 컨텍스트 + 뉴스 컨텍스트 결합
-  const combinedContext = categoryOverride === "featured-stocks" && dataFileContent
-    ? dataFileContent
-    : [stockContext, newsContext].filter(Boolean).join("\n") || undefined;
+  // 신규상장주: 38.co.kr 데이터 가져오기
+  let ipoData = "";
+  if (ipoUrl) {
+    ipoData = await fetch38Data(ipoUrl);
+  }
+
+  // 컨텍스트 결합
+  let combinedContext: string | undefined;
+  if (categoryOverride === "featured-stocks" && dataFileContent) {
+    combinedContext = dataFileContent;
+  } else if (categoryOverride === "new-stocks") {
+    combinedContext = [ipoData, newsContext, stockContext].filter(Boolean).join("\n") || undefined;
+  } else {
+    combinedContext = [stockContext, newsContext].filter(Boolean).join("\n") || undefined;
+  }
   const { system, user } = buildPrompt(keyword, combinedContext, categoryOverride ?? undefined);
 
   const response = await client.messages.create({
@@ -385,6 +434,11 @@ async function main(): Promise<void> {
     const now = new Date();
     const dateLabel = `${now.getMonth() + 1}월 ${now.getDate()}일자`;
     const result = await generateFeaturedStocksThumbnail(slug, dateLabel);
+    thumbnailPath = result.path;
+    imageCredit = result.credit;
+  } else if (categoryOverride === "new-stocks") {
+    // 신규상장주: 회사 로고 또는 관련 이미지
+    const result = await downloadCompanyLogo(keyword, slug);
     thumbnailPath = result.path;
     imageCredit = result.credit;
   } else {

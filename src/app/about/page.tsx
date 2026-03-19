@@ -5,7 +5,7 @@ import { SITE_NAME, SITE_URL } from "@/lib/constants";
 export const metadata: Metadata = {
   title: "소개",
   description:
-    "K-주식 핫이슈는 개인 투자자를 위한 재료 기반 한국 주식 시장 분석 블로그입니다. 주식특징주, 핫이슈, 신규주 분석, 재료와 테마 뉴스를 제공합니다.",
+    "K-주식 핫이슈는 개인 투자자를 위한 재료 기반 한국 주식 시장 분석 블로그입니다. 주식특징주, 핫이슈, 신규 상장주, 재료와 테마 뉴스를 제공합니다.",
   openGraph: {
     title: `소개 | ${SITE_NAME}`,
     description:
@@ -102,7 +102,7 @@ export default function AboutPage() {
               </div>
               <div className="bg-blue-50 border border-blue-100 rounded-xl p-6">
                 <h3 className="text-lg font-bold text-blue-700 mb-3">
-                  신규주 분석
+                  신규 상장주
                 </h3>
                 <p className="text-gray-700 leading-relaxed">
                   신규 상장 종목(IPO)과 공모주를 분석합니다. 공모가 대비 적정
