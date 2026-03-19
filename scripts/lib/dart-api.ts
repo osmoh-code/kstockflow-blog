@@ -235,8 +235,67 @@ export async function fetchFinancials(
 // Prospectus Content Fetching
 // ---------------------------------------------------------------------------
 
+/**
+ * Extract clean text from DART HTML, preserving table structures as markdown.
+ */
+function extractTextFromHtml(html: string): string {
+  // Remove scripts and styles
+  let cleaned = html
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<style[\s\S]*?<\/style>/gi, "");
+
+  // Convert <table> to simplified markdown-like text (preserve data structure)
+  cleaned = cleaned
+    .replace(/<tr[^>]*>/gi, "\n| ")
+    .replace(/<\/tr>/gi, " |")
+    .replace(/<t[dh][^>]*>/gi, " | ")
+    .replace(/<\/t[dh]>/gi, "");
+
+  // Convert remaining HTML to text
+  return cleaned
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n\s*\n/g, "\n")
+    .trim();
+}
+
+/**
+ * Detect section topic from content for labeling.
+ */
+function detectSectionTopic(text: string): string {
+  const topicKeywords: ReadonlyArray<readonly [string, readonly string[]]> = [
+    ["공모개요", ["공모가", "공모주식수", "주간사", "공모금액", "희망공모가"]],
+    ["재무제표", ["매출액", "영업이익", "당기순이익", "자산총계", "부채총계", "영업손실", "재무상태표", "손익계산서"]],
+    ["주주현황", ["최대주주", "특수관계인", "지분율", "주주명"]],
+    ["보호예수", ["보호예수", "의무보유", "유통가능", "유통제한"]],
+    ["사업내용", ["사업의 내용", "주요 사업", "매출 구성", "사업 개요", "영위하는"]],
+    ["자금사용계획", ["자금의 사용목적", "자금사용계획", "운영자금", "시설자금", "채무상환"]],
+    ["수요예측", ["수요예측", "기관투자자", "경쟁률", "의무보유확약"]],
+    ["위험요소", ["투자위험요소", "위험요인", "리스크", "투자 위험"]],
+    ["인수인의의견", ["인수인의 의견", "주간사 의견", "대표주관"]],
+  ];
+
+  for (const [topic, keywords] of topicKeywords) {
+    if (keywords.some((kw) => text.includes(kw))) {
+      return topic;
+    }
+  }
+  return "기타";
+}
+
+interface ProspectusSection {
+  readonly eleId: number;
+  readonly topic: string;
+  readonly content: string;
+}
+
 async function fetchProspectusContent(rcpNo: string): Promise<string> {
-  console.log(`  📄 투자설명서 본문 읽는 중 (rcpNo: ${rcpNo})...`);
+  console.log(`  📄 투자설명서/증권신고서 전체 본문 읽는 중 (rcpNo: ${rcpNo})...`);
 
   // First, get dcmNo from the main page
   const mainUrl = `https://dart.fss.or.kr/dsaf001/main.do?rcpNo=${rcpNo}`;
@@ -251,42 +310,85 @@ async function fetchProspectusContent(rcpNo: string): Promise<string> {
   }
   const dcmNo = dcmNoMatch[1];
 
-  // Fetch the first few sections of the document
-  const sections: string[] = [];
-  for (let eleId = 0; eleId <= 5; eleId++) {
+  // Fetch ALL sections of the document (투자설명서는 보통 15~25개 섹션)
+  const sections: ProspectusSection[] = [];
+  let consecutiveEmpty = 0;
+  const MAX_SECTIONS = 30;
+  const MAX_CONSECUTIVE_EMPTY = 5;
+
+  for (let eleId = 0; eleId < MAX_SECTIONS; eleId++) {
     const eleIdStr = String(eleId).padStart(7, "0");
     const viewerUrl = `https://dart.fss.or.kr/report/viewer.do?rcpNo=${rcpNo}&dcmNo=${dcmNo}&eleId=${eleIdStr}&offset=0&length=0&dtd=dart3.xsd`;
 
     try {
       const response = await fetch(viewerUrl);
-      if (!response.ok) continue;
+      if (!response.ok) {
+        consecutiveEmpty++;
+        if (consecutiveEmpty >= MAX_CONSECUTIVE_EMPTY) break;
+        continue;
+      }
 
       const html = await response.text();
-      // Extract text from HTML
-      const text = html
-        .replace(/<script[\s\S]*?<\/script>/gi, "")
-        .replace(/<style[\s\S]*?<\/style>/gi, "")
-        .replace(/<[^>]+>/g, " ")
-        .replace(/&nbsp;/g, " ")
-        .replace(/&amp;/g, "&")
-        .replace(/&lt;/g, "<")
-        .replace(/&gt;/g, ">")
-        .replace(/\s+/g, " ")
-        .trim();
+      const text = extractTextFromHtml(html);
 
       if (text.length > 100) {
-        sections.push(text);
+        const topic = detectSectionTopic(text);
+        sections.push({ eleId, topic, content: text });
+        consecutiveEmpty = 0;
+        console.log(`     섹션 ${eleId}: [${topic}] (${text.length}자)`);
+      } else {
+        consecutiveEmpty++;
+        if (consecutiveEmpty >= MAX_CONSECUTIVE_EMPTY) break;
       }
     } catch {
-      continue;
+      consecutiveEmpty++;
+      if (consecutiveEmpty >= MAX_CONSECUTIVE_EMPTY) break;
     }
   }
 
-  const fullContent = sections.join("\n\n---\n\n");
-  console.log(`  ✅ 투자설명서 ${sections.length}개 섹션 로드 (총 ${fullContent.length}자)`);
+  console.log(`  ✅ 투자설명서 ${sections.length}개 섹션 로드 완료`);
 
-  // Truncate if too long for Claude context
-  return fullContent.slice(0, 15000);
+  if (sections.length === 0) return "";
+
+  // 핵심 섹션 우선 배치: 재무, 보호예수, 공모개요, 주주현황 → 나머지
+  const priorityTopics = ["공모개요", "재무제표", "주주현황", "보호예수", "자금사용계획", "수요예측"];
+  const prioritySections = sections.filter((s) => priorityTopics.includes(s.topic));
+  const otherSections = sections.filter((s) => !priorityTopics.includes(s.topic));
+  const orderedSections = [...prioritySections, ...otherSections];
+
+  // 섹션별로 라벨링하여 구조화된 텍스트 생성
+  const formattedSections = orderedSections.map(
+    (s) => `[섹션: ${s.topic}]\n${s.content}`,
+  );
+
+  const fullContent = formattedSections.join("\n\n---\n\n");
+
+  // 충분한 컨텍스트 제공 (Claude sonnet max input ~200k tokens)
+  // 핵심 데이터 섹션은 잘리지 않도록 넉넉하게 설정
+  const MAX_CONTENT_LENGTH = 60000;
+  if (fullContent.length <= MAX_CONTENT_LENGTH) {
+    return fullContent;
+  }
+
+  // 초과 시: 핵심 섹션은 전체 유지, 나머지를 줄임
+  let result = "";
+  for (const s of orderedSections) {
+    const block = `[섹션: ${s.topic}]\n${s.content}\n\n---\n\n`;
+    if (result.length + block.length > MAX_CONTENT_LENGTH) {
+      // 핵심 섹션이면 가능한 한 포함
+      if (priorityTopics.includes(s.topic)) {
+        const remaining = MAX_CONTENT_LENGTH - result.length - 50;
+        if (remaining > 500) {
+          result += `[섹션: ${s.topic}]\n${s.content.slice(0, remaining)}\n...(이하 생략)\n\n---\n\n`;
+        }
+      }
+      break;
+    }
+    result += block;
+  }
+
+  console.log(`  📏 최종 컨텐츠 길이: ${result.length}자 (원본 ${fullContent.length}자)`);
+  return result;
 }
 
 // ---------------------------------------------------------------------------
@@ -390,13 +492,13 @@ export function formatDartDataForPrompt(data: DartIpoData): string {
 | 설립일 | ${data.company.establishDate} |`);
   }
 
-  // Financials
+  // Financials from API
   if (data.financials.length > 0) {
     const finLines = data.financials
       .filter((f) => ["매출액", "영업이익", "당기순이익", "영업손실", "당기순손실"].some((k) => f.accountNm.includes(k)))
       .map((f) => `| ${f.accountNm} | ${f.thstrmAmount} | ${f.frmtrmAmount} | ${f.bfefrmtrmAmount} |`);
     if (finLines.length > 0) {
-      sections.push(`## DART 재무제표 (공식 데이터)
+      sections.push(`## DART 재무제표 API (공식 데이터)
 | 항목 | 당기 | 전기 | 전전기 |
 |------|------|------|--------|
 ${finLines.join("\n")}`);
@@ -414,10 +516,22 @@ ${finLines.join("\n")}`);
 ${discLines.join("\n")}`);
   }
 
-  // Prospectus content
+  // Prospectus content — now includes ALL sections with labels
   if (data.prospectusContent) {
-    sections.push(`## DART 투자설명서/증권신고서 본문 (공식 데이터)
-⚠️ 아래 내용은 DART 전자공시시스템의 공식 데이터입니다. 이 데이터의 수치를 그대로 사용하세요.
+    sections.push(`## DART 투자설명서/증권신고서 전문 (공식 데이터)
+
+⚠️ 최우선 데이터 소스: 아래는 DART 전자공시시스템에서 직접 읽어온 투자설명서/증권신고서 전문입니다.
+이 데이터에 포함된 모든 수치(공모가, 재무제표, 주주현황, 보호예수, 자금사용계획 등)를 반드시 그대로 사용하세요.
+
+### 데이터 활용 지침
+1. [섹션: 공모개요] → 공모가, 공모주식수, 주간사, 상장시장, 수요예측 결과 추출
+2. [섹션: 재무제표] → 매출액, 영업이익, 당기순이익, 자산/부채 총계 추출 (3개년)
+3. [섹션: 주주현황] → 최대주주, 특수관계인, VC/PE 지분율 추출
+4. [섹션: 보호예수] → 보호예수 기간별 물량, 즉시 유통 가능 물량 추출
+5. [섹션: 자금사용계획] → 공모 자금 용도별 배분 추출
+6. [섹션: 수요예측] → 기관 경쟁률, 의무보유확약 비율 추출
+7. [섹션: 사업내용] → 주요 사업, 제품/서비스, 매출 구성, 시장 현황 추출
+8. [섹션: 위험요소] → 투자 리스크 요인 추출
 
 ${data.prospectusContent}`);
   }
