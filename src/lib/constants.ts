@@ -6,7 +6,7 @@ export const AUTHOR_NAME = "K-주식 핫이슈 편집팀";
 export const DEFAULT_OG_IMAGE = "/images/og-default.png";
 
 export const ADSENSE_CLIENT_ID = "ca-pub-XXXXXXXXXX";
-export const GA_TRACKING_ID = "G-N6XNT6MPCR";
+export const GA_TRACKING_ID = "G-39M45Y7476";
 
 export interface Category {
   readonly name: string;
