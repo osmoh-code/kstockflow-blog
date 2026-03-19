@@ -49,3 +49,5 @@ coverage/
 
 # Misc
 *.pem
+DART_API_KEY=ab5e072ec681f5b34302d29af5368e0bdc030c9e
+.dart-corpcode*

@@ -1,18 +1,20 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:news="http://www.google.com/schemas/sitemap-news/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml" xmlns:mobile="http://www.google.com/schemas/sitemap-mobile/1.0" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1" xmlns:video="http://www.google.com/schemas/sitemap-video/1.1">
-<url><loc>https://kstockflow.com/category/featured-stocks/</loc><lastmod>2026-03-19T00:29:14.443Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
-<url><loc>https://kstockflow.com/category/hot-issues/</loc><lastmod>2026-03-19T00:29:14.445Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
-<url><loc>https://kstockflow.com/category/new-stocks/</loc><lastmod>2026-03-19T00:29:14.445Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
-<url><loc>https://kstockflow.com/category/theme-news/</loc><lastmod>2026-03-19T00:29:14.445Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
-<url><loc>https://kstockflow.com/disclaimer/</loc><lastmod>2026-03-19T00:29:14.445Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
-<url><loc>https://kstockflow.com/contact/</loc><lastmod>2026-03-19T00:29:14.445Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
-<url><loc>https://kstockflow.com/privacy/</loc><lastmod>2026-03-19T00:29:14.445Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
-<url><loc>https://kstockflow.com/posts/2026-03-19-6g/</loc><lastmod>2026-03-19T00:29:14.445Z</lastmod><changefreq>weekly</changefreq><priority>0.8</priority></url>
-<url><loc>https://kstockflow.com/posts/2026-03-19-gtc-2026/</loc><lastmod>2026-03-19T00:29:14.445Z</lastmod><changefreq>weekly</changefreq><priority>0.8</priority></url>
-<url><loc>https://kstockflow.com/posts/2026-03-19-post-woyvk4/</loc><lastmod>2026-03-19T00:29:14.445Z</lastmod><changefreq>weekly</changefreq><priority>0.8</priority></url>
-<url><loc>https://kstockflow.com/posts/2026-03-19-post-wp72hq/</loc><lastmod>2026-03-19T00:29:14.445Z</lastmod><changefreq>weekly</changefreq><priority>0.8</priority></url>
-<url><loc>https://kstockflow.com/posts/2026-03-19-post-wp9w85/</loc><lastmod>2026-03-19T00:29:14.445Z</lastmod><changefreq>weekly</changefreq><priority>0.8</priority></url>
-<url><loc>https://kstockflow.com/posts/2026-03-19-x/</loc><lastmod>2026-03-19T00:29:14.445Z</lastmod><changefreq>weekly</changefreq><priority>0.8</priority></url>
-<url><loc>https://kstockflow.com/</loc><lastmod>2026-03-19T00:29:14.445Z</lastmod><changefreq>daily</changefreq><priority>1</priority></url>
-<url><loc>https://kstockflow.com/about/</loc><lastmod>2026-03-19T00:29:14.445Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
+<url><loc>https://kstockflow.com/</loc><lastmod>2026-03-19T04:58:10.225Z</lastmod><changefreq>daily</changefreq><priority>1</priority></url>
+<url><loc>https://kstockflow.com/about/</loc><lastmod>2026-03-19T04:58:10.226Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
+<url><loc>https://kstockflow.com/privacy/</loc><lastmod>2026-03-19T04:58:10.226Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
+<url><loc>https://kstockflow.com/disclaimer/</loc><lastmod>2026-03-19T04:58:10.226Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
+<url><loc>https://kstockflow.com/contact/</loc><lastmod>2026-03-19T04:58:10.226Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
+<url><loc>https://kstockflow.com/posts/2026-03-18-featured-stocks/</loc><lastmod>2026-03-19T04:58:10.226Z</lastmod><changefreq>weekly</changefreq><priority>0.8</priority></url>
+<url><loc>https://kstockflow.com/posts/2026-03-19-6g/</loc><lastmod>2026-03-19T04:58:10.226Z</lastmod><changefreq>weekly</changefreq><priority>0.8</priority></url>
+<url><loc>https://kstockflow.com/posts/2026-03-19-gtc-2026/</loc><lastmod>2026-03-19T04:58:10.226Z</lastmod><changefreq>weekly</changefreq><priority>0.8</priority></url>
+<url><loc>https://kstockflow.com/posts/2026-03-19-post-woyvk4/</loc><lastmod>2026-03-19T04:58:10.226Z</lastmod><changefreq>weekly</changefreq><priority>0.8</priority></url>
+<url><loc>https://kstockflow.com/posts/2026-03-19-post-wp72hq/</loc><lastmod>2026-03-19T04:58:10.226Z</lastmod><changefreq>weekly</changefreq><priority>0.8</priority></url>
+<url><loc>https://kstockflow.com/posts/2026-03-19-post-wp9w85/</loc><lastmod>2026-03-19T04:58:10.226Z</lastmod><changefreq>weekly</changefreq><priority>0.8</priority></url>
+<url><loc>https://kstockflow.com/posts/2026-03-19-x/</loc><lastmod>2026-03-19T04:58:10.226Z</lastmod><changefreq>weekly</changefreq><priority>0.8</priority></url>
+<url><loc>https://kstockflow.com/posts/2026-03-20-im-biologics/</loc><lastmod>2026-03-19T04:58:10.226Z</lastmod><changefreq>weekly</changefreq><priority>0.8</priority></url>
+<url><loc>https://kstockflow.com/category/featured-stocks/</loc><lastmod>2026-03-19T04:58:10.226Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
+<url><loc>https://kstockflow.com/category/hot-issues/</loc><lastmod>2026-03-19T04:58:10.226Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
+<url><loc>https://kstockflow.com/category/new-stocks/</loc><lastmod>2026-03-19T04:58:10.226Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
+<url><loc>https://kstockflow.com/category/theme-news/</loc><lastmod>2026-03-19T04:58:10.226Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
 </urlset>

@@ -32,6 +32,7 @@ import {
 } from "./lib/stock-data";
 import { findAndDownloadThumbnail, generateFeaturedStocksThumbnail, downloadCompanyLogo } from "./lib/image-search";
 import { searchNews, newsToContext } from "./lib/news-search";
+import { fetchDartIpoData, formatDartDataForPrompt } from "./lib/dart-api";
 
 // ---------------------------------------------------------------------------
 // Config
@@ -360,9 +361,21 @@ async function main(): Promise<void> {
     console.log(`📄 데이터 파일 로드: ${dataFile} (${dataFileContent.length}자)`);
   }
 
-  // 신규상장주: 38.co.kr 데이터 가져오기
+  // 신규상장주: DART API → 투자설명서/증권신고서 + 뉴스 수집
+  let dartContext = "";
+  if (categoryOverride === "new-stocks") {
+    try {
+      const dartData = await fetchDartIpoData(keyword);
+      dartContext = formatDartDataForPrompt(dartData);
+      console.log(`  📊 DART 데이터 수집 완료 (${dartContext.length}자)`);
+    } catch (err) {
+      console.warn(`  ⚠️ DART API 오류:`, err instanceof Error ? err.message : err);
+    }
+  }
+
+  // 레거시: 38.co.kr 데이터 (DART 실패 시 fallback)
   let ipoData = "";
-  if (ipoUrl) {
+  if (ipoUrl && !dartContext) {
     ipoData = await fetch38Data(ipoUrl);
   }
 
@@ -371,7 +384,7 @@ async function main(): Promise<void> {
   if (categoryOverride === "featured-stocks" && dataFileContent) {
     combinedContext = dataFileContent;
   } else if (categoryOverride === "new-stocks") {
-    combinedContext = [ipoData, newsContext, stockContext].filter(Boolean).join("\n") || undefined;
+    combinedContext = [dartContext, ipoData, newsContext, stockContext].filter(Boolean).join("\n\n") || undefined;
   } else {
     combinedContext = [stockContext, newsContext].filter(Boolean).join("\n") || undefined;
   }
