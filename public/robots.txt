@@ -1,6 +1,11 @@
+# *
 User-agent: *
 Allow: /
 Disallow: /api/
 Disallow: /admin/
 
+# Host
+Host: https://kstockflow.com
+
+# Sitemaps
 Sitemap: https://kstockflow.com/sitemap.xml
