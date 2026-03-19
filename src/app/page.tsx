@@ -11,13 +11,15 @@ export default function HomePage() {
   const allPosts = getAllPosts();
   const websiteStructuredData = generateWebSiteStructuredData();
 
-  const featuredPost = allPosts.length > 0 ? allPosts[0] : null;
-  const remainingPosts = allPosts.slice(1);
+  // Featured: 핫이슈 최신글 고정
+  const featuredPost = allPosts.find((p) => p.meta.category === "hot-issues") ?? null;
 
   // 카테고리별 최신글 그룹핑 (왼쪽: 주식특징주, 중간: 핫이슈, 오른쪽: 신규주분석)
   const columnCategories = ["featured-stocks", "hot-issues", "new-stocks"] as const;
   const postsByCategory = columnCategories.map((cat) =>
-    allPosts.filter((p) => p.meta.category === cat).slice(0, 2)
+    allPosts
+      .filter((p) => p.meta.category === cat && p.meta.slug !== featuredPost?.meta.slug)
+      .slice(0, 2)
   );
 
   return (
