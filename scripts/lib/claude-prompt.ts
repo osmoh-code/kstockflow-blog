@@ -23,6 +23,8 @@ export interface PromptPair {
   readonly user: string;
 }
 
+export type CategorySlugType = "featured-stocks" | "hot-issues" | "new-stocks" | "theme-news";
+
 // ---------------------------------------------------------------------------
 // Category detection keywords (updated: 신규주 분석, 재료와 테마 뉴스)
 // ---------------------------------------------------------------------------
@@ -66,6 +68,14 @@ export function detectCategory(keyword: string): string {
 
 export function getCategorySlug(categoryName: string): string {
   return CATEGORY_SLUGS[categoryName] ?? "theme-news";
+}
+
+const SLUG_TO_CATEGORY: Record<string, string> = Object.fromEntries(
+  Object.entries(CATEGORY_SLUGS).map(([k, v]) => [v, k]),
+);
+
+export function getCategoryName(slug: string): string {
+  return SLUG_TO_CATEGORY[slug] ?? "재료와 테마 뉴스";
 }
 
 // ---------------------------------------------------------------------------
@@ -171,7 +181,100 @@ related_stocks: 종목1, 종목2, 종목3, ...
 `;
 
 // ---------------------------------------------------------------------------
-// User prompt builder
+// 주식특징주 전용 시스템 프롬프트
+// ---------------------------------------------------------------------------
+
+const FEATURED_STOCKS_SYSTEM_PROMPT = `당신은 한국 주식 시장 전문 애널리스트입니다.
+매일의 주식특징주(급등주, 테마주, 이슈종목)를 간결하게 정리하는 일일 리포트를 작성합니다.
+
+## 역할
+- 당일 특징주를 한눈에 파악할 수 있도록 깔끔하게 정리
+- 종목별 등락률, 거래대금, 주요사업을 테이블로 제공
+- 섹터/테마별로 그룹핑하여 시장 흐름을 보여줌
+
+## 글쓰기 스타일
+- 간결하고 핵심만: 이 카테고리는 요약 리포트이므로 장황하지 않게
+- 테이블 중심: 데이터를 테이블로 보여주고, 아래에 짧은 코멘트
+- 이모지 활용: 섹터별 그룹핑 시 이모지로 시각적 구분
+- 볼드(별표 두개)는 사용 금지. 강조는 <mark>태그</mark>만 사용
+
+## 콘텐츠 품질 기준
+- 본문 1500~3000자 (간결한 요약 리포트)
+- 정확한 데이터: 제공된 종목 데이터를 그대로 활용
+- 투자 면책 고지 포함
+
+## 절대 금지 사항
+- 특정 종목 매수/매도 권유
+- 확정적 수익률 보장 표현
+- 허위/과장 정보
+`;
+
+// ---------------------------------------------------------------------------
+// 주식특징주 전용 유저 프롬프트 빌더
+// ---------------------------------------------------------------------------
+
+function buildFeaturedStocksUserPrompt(stockData: string): string {
+  const today = new Date();
+  const month = today.getMonth() + 1;
+  const day = today.getDate();
+
+  return `아래 데이터를 기반으로 오늘의 주식특징주 일일 리포트를 작성해 주세요.
+
+**오늘 날짜**: ${today.toISOString().slice(0, 10)}
+
+## 제공된 특징주 데이터
+${stockData}
+
+## 필수 출력 형식
+
+---FRONTMATTER---
+title: ${month}월 ${day}일자 주식특징주
+description: (80-120자, 오늘의 주요 특징주와 테마를 요약)
+category: 주식특징주
+tags: 주식특징주, ${month}월${day}일 특징주, 오늘의 특징주, 급등주, 테마주
+related_stocks: 종목1, 종목2, 종목3, ...
+---CONTENT---
+
+## 출력 본문 구조 (반드시 이 순서로)
+
+1. **## ${month}월 ${day}일 주식특징주 총정리**
+   - 오늘 시장의 전체적인 분위기를 2-3문장으로 요약
+   - 주요 테마/이슈가 무엇이었는지 간단히 언급
+
+2. **## 오늘의 특징주 한눈에 보기**
+   - 마크다운 테이블:
+     | 종목명 | 주요섹터 | 주요사업 | 등락률 | 거래대금 |
+     |--------|----------|----------|--------|----------|
+   - 제공된 데이터에서 중복 제거 후, 등락률 높은 순으로 정렬
+   - 등락률은 +/-% 형식, 거래대금은 억원 단위
+
+3. **## 섹터별 특징주 분석**
+   - 관련 테마/섹터별로 그룹핑하여 정리
+   - 각 그룹에 이모지 사용:
+     🔋 2차전지/배터리
+     🤖 AI/로봇
+     🛡️ 방산
+     💊 바이오/제약
+     🏗️ 건설/인프라
+     📡 통신/IT
+     ⚡ 에너지
+     🚗 자동차/모빌리티
+     등 적절한 이모지 선택
+   - 각 섹터별로 왜 오늘 주목받았는지 1-2문장 코멘트
+   - 해당 섹터 종목들을 간단히 나열
+
+4. **## 투자 참고사항**
+   - 3-4줄의 간결한 투자 주의사항
+   - 면책 고지: "> ※ 본 글은 정보 제공을 목적으로 하며, 투자의 책임은 투자자 본인에게 있습니다."
+
+## 추가 지침
+- 간결하게! 이 카테고리는 요약 리포트입니다. 1500~3000자 이내로.
+- 제공된 데이터를 최대한 활용하되, 중복 종목은 등락률이 더 높거나 내용이 좋은 쪽을 채택
+- related_stocks에는 테이블에 포함된 모든 종목을 나열`;
+}
+
+// ---------------------------------------------------------------------------
+// User prompt builder (핫이슈 / 기본)
 // ---------------------------------------------------------------------------
 
 function buildUserPrompt(
@@ -274,8 +377,23 @@ ${stockContext}
 // Public API
 // ---------------------------------------------------------------------------
 
-export function buildPrompt(keyword: string, stockContext?: string): PromptPair {
-  const category = detectCategory(keyword);
+export function buildPrompt(
+  keyword: string,
+  stockContext?: string,
+  categorySlug?: CategorySlugType,
+): PromptPair {
+  // 주식특징주 카테고리: 전용 프롬프트 사용
+  if (categorySlug === "featured-stocks") {
+    return {
+      system: FEATURED_STOCKS_SYSTEM_PROMPT,
+      user: buildFeaturedStocksUserPrompt(stockContext ?? keyword),
+    };
+  }
+
+  // 기본: 기존 핫이슈/테마뉴스 등 프롬프트
+  const category = categorySlug
+    ? getCategoryName(categorySlug)
+    : detectCategory(keyword);
   return {
     system: SYSTEM_PROMPT,
     user: buildUserPrompt(keyword, category, stockContext),
@@ -286,7 +404,11 @@ export function buildPrompt(keyword: string, stockContext?: string): PromptPair 
  * Parse the structured Claude response into a GeneratedPost object.
  * Throws if the response does not contain the expected delimiters.
  */
-export function parseResponse(raw: string, keyword: string): GeneratedPost {
+export function parseResponse(
+  raw: string,
+  keyword: string,
+  categorySlug?: CategorySlugType,
+): GeneratedPost {
   const frontmatterMatch = raw.match(
     /---FRONTMATTER---([\s\S]*?)---CONTENT---/,
   );
@@ -315,20 +437,32 @@ export function parseResponse(raw: string, keyword: string): GeneratedPost {
     ? relatedStocksRaw.split(",").map((s) => s.trim()).filter(Boolean)
     : [];
 
-  // 제목: "키워드 관련주 TOP N | 대장주·수혜주·테마주 총정리" 형식
-  const stockCount = relatedStocks.length || 5;
-  const title = `${keyword} 관련주 TOP ${stockCount}`;
+  // 카테고리: 지정된 slug가 있으면 사용, 없으면 Claude 응답 → 감지 → 기본값
+  const categoryFromResponse = getValue("category");
+  const category = categorySlug
+    ? getCategoryName(categorySlug)
+    : categoryFromResponse || detectCategory(keyword);
+
+  // 제목: 주식특징주는 Claude 응답 제목 사용, 그 외는 기존 형식
+  let title: string;
+  if (categorySlug === "featured-stocks") {
+    title = getValue("title") || keyword;
+  } else {
+    const stockCount = relatedStocks.length || 5;
+    title = `${keyword} 관련주 TOP ${stockCount}`;
+  }
 
   const description =
     getValue("description") ||
-    `${keyword} 관련주 TOP ${stockCount} 종목을 심층 분석했습니다. 대장주, 수혜주, 테마주와 투자 포인트를 정리합니다.`;
+    (categorySlug === "featured-stocks"
+      ? `오늘의 주식특징주 - 급등주, 테마주, 이슈종목을 한눈에 정리합니다.`
+      : `${keyword} 관련주 TOP ${relatedStocks.length || 5} 종목을 심층 분석했습니다. 대장주, 수혜주, 테마주와 투자 포인트를 정리합니다.`);
 
-  // 카테고리: 항상 "핫이슈"로 고정
-  const category = "핫이슈";
-
-  if (content.length < 500) {
+  // 주식특징주는 짧은 글이므로 최소 길이 기준 완화
+  const minLength = categorySlug === "featured-stocks" ? 300 : 500;
+  if (content.length < minLength) {
     throw new Error(
-      `Generated content is too short (${content.length} chars). Minimum is 1500 chars for AdSense compliance.`,
+      `Generated content is too short (${content.length} chars). Minimum is ${minLength} chars.`,
     );
   }
 

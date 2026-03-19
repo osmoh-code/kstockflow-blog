@@ -131,7 +131,7 @@ const KEYWORD_MAP: Record<string, KeywordMapping> = {
   증권: { primary: "securities brokerage trading screen", fallback: "stock market finance chart" },
   보험: { primary: "insurance finance protection", fallback: "financial security umbrella" },
   K팝: { primary: "kpop concert stage performance", fallback: "korean music entertainment" },
-  2차전지: { primary: "battery cell lithium ion factory", fallback: "EV battery technology" },
+  "2차전지": { primary: "battery cell lithium ion factory", fallback: "EV battery technology" },
   전력: { primary: "electric power grid transmission tower", fallback: "energy electricity infrastructure" },
   해운: { primary: "cargo ship container ocean port", fallback: "shipping vessel freight sea" },
 };
@@ -357,6 +357,58 @@ async function downloadImage(imageUrl: string, slug: string): Promise<string> {
   } catch (error) {
     console.warn(`  ⚠️ 이미지 다운로드 실패:`, error);
     return "/images/og-default.png";
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 주식특징주 전용 썸네일: 어두운 차트 배경 + 날짜 텍스트 오버레이
+// ---------------------------------------------------------------------------
+
+export async function generateFeaturedStocksThumbnail(
+  slug: string,
+  dateLabel: string, // e.g. "3월 18일자"
+): Promise<{ path: string; credit: string }> {
+  const fs = await import("fs");
+  const path = await import("path");
+  const sharp = (await import("sharp")).default;
+
+  const dir = path.join(process.cwd(), "public", "images", "thumbnails");
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+
+  const bgPath = path.join(process.cwd(), "public", "images", "featured-stocks-bg.jpg");
+  const outPath = path.join(dir, `${slug}.jpg`);
+  const publicPath = `/images/thumbnails/${slug}.jpg`;
+
+  // SVG 텍스트 오버레이 (어두운 반투명 배경 + 흰색 텍스트)
+  const svgOverlay = `
+    <svg width="1200" height="630" xmlns="http://www.w3.org/2000/svg">
+      <rect width="1200" height="630" fill="rgba(0,0,0,0.55)" />
+      <text x="600" y="270" text-anchor="middle" font-family="Arial, sans-serif" font-size="72" font-weight="bold" fill="white" letter-spacing="4">${dateLabel}</text>
+      <text x="600" y="370" text-anchor="middle" font-family="Arial, sans-serif" font-size="80" font-weight="bold" fill="#FFD700" letter-spacing="6">주식특징주</text>
+      <rect x="350" y="400" width="500" height="3" fill="#FFD700" rx="2" />
+      <text x="600" y="450" text-anchor="middle" font-family="Arial, sans-serif" font-size="28" fill="rgba(255,255,255,0.8)">K-주식 핫이슈 | 오늘의 급등주 · 테마주 총정리</text>
+    </svg>`;
+
+  try {
+    await sharp(bgPath)
+      .resize(1200, 630, { fit: "cover" })
+      .composite([
+        {
+          input: Buffer.from(svgOverlay),
+          top: 0,
+          left: 0,
+        },
+      ])
+      .jpeg({ quality: 85 })
+      .toFile(outPath);
+
+    console.log(`  ✅ 주식특징주 썸네일 생성: ${publicPath}`);
+    return { path: publicPath, credit: "" };
+  } catch (error) {
+    console.warn(`  ⚠️ 썸네일 생성 실패:`, error);
+    return { path: "/images/og-default.png", credit: "" };
   }
 }
 

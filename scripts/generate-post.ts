@@ -21,6 +21,7 @@ import {
   parseResponse,
   getCategorySlug,
   type GeneratedPost,
+  type CategorySlugType,
 } from "./lib/claude-prompt";
 import {
   getMultipleStockInfo,
@@ -29,7 +30,7 @@ import {
   stockInfoToContext,
   type StockInfo,
 } from "./lib/stock-data";
-import { findAndDownloadThumbnail } from "./lib/image-search";
+import { findAndDownloadThumbnail, generateFeaturedStocksThumbnail } from "./lib/image-search";
 import { searchNews, newsToContext } from "./lib/news-search";
 
 // ---------------------------------------------------------------------------
@@ -105,7 +106,16 @@ function todayDate(): string {
   return `${y}-${m}-${d}`;
 }
 
-function parseArgs(): { keyword: string; stocks: readonly string[]; thumbnail: string | null; preview: boolean } {
+const VALID_CATEGORY_SLUGS = ["featured-stocks", "hot-issues", "new-stocks", "theme-news"] as const;
+
+function parseArgs(): {
+  keyword: string;
+  stocks: readonly string[];
+  thumbnail: string | null;
+  preview: boolean;
+  category: CategorySlugType | null;
+  dataFile: string | null;
+} {
   const args = process.argv.slice(2);
   const keyword = args.find((a) => !a.startsWith("--"));
   const stocksIdx = args.indexOf("--stocks");
@@ -116,6 +126,16 @@ function parseArgs(): { keyword: string; stocks: readonly string[]; thumbnail: s
 
   const thumbIdx = args.indexOf("--thumbnail");
   const thumbnail = thumbIdx !== -1 && args[thumbIdx + 1] ? args[thumbIdx + 1] : null;
+
+  const catIdx = args.indexOf("--category");
+  const catRaw = catIdx !== -1 && args[catIdx + 1] ? args[catIdx + 1] : null;
+  const category: CategorySlugType | null =
+    catRaw && VALID_CATEGORY_SLUGS.includes(catRaw as CategorySlugType)
+      ? (catRaw as CategorySlugType)
+      : null;
+
+  const dataIdx = args.indexOf("--data-file");
+  const dataFile = dataIdx !== -1 && args[dataIdx + 1] ? args[dataIdx + 1] : null;
 
   const preview = args.includes("--preview");
 
@@ -130,10 +150,22 @@ function parseArgs(): { keyword: string; stocks: readonly string[]; thumbnail: s
     console.error(
       '   옵션: --thumbnail "이미지파일경로"  (썸네일 직접 지정)',
     );
+    console.error(
+      '   옵션: --category "featured-stocks" (카테고리 지정: featured-stocks, hot-issues, new-stocks, theme-news)',
+    );
+    console.error(
+      '   옵션: --data-file "파일경로"       (특징주 데이터 파일, --category featured-stocks와 함께 사용)',
+    );
     process.exit(1);
   }
 
-  return { keyword, stocks, thumbnail, preview };
+  if (catRaw && !category) {
+    console.error(`❌ 잘못된 카테고리: "${catRaw}"`);
+    console.error(`   사용 가능: ${VALID_CATEGORY_SLUGS.join(", ")}`);
+    process.exit(1);
+  }
+
+  return { keyword, stocks, thumbnail, preview, category, dataFile };
 }
 
 function buildMdx(
@@ -200,7 +232,7 @@ function escapeRegex(str: string): string {
 // ---------------------------------------------------------------------------
 
 async function main(): Promise<void> {
-  const { keyword, stocks: manualStocks, thumbnail: manualThumbnail, preview } = parseArgs();
+  const { keyword, stocks: manualStocks, thumbnail: manualThumbnail, preview, category: categoryOverride, dataFile } = parseArgs();
 
   console.log(`\n🔍 키워드: "${keyword}"`);
 
@@ -280,9 +312,21 @@ async function main(): Promise<void> {
   const apiKey = loadApiKey();
   const client = new Anthropic({ apiKey });
 
+  // 주식특징주 카테고리: --data-file에서 데이터 로드
+  let dataFileContent = "";
+  if (dataFile) {
+    if (!fs.existsSync(dataFile)) {
+      throw new Error(`데이터 파일을 찾을 수 없습니다: ${dataFile}`);
+    }
+    dataFileContent = fs.readFileSync(dataFile, "utf-8");
+    console.log(`📄 데이터 파일 로드: ${dataFile} (${dataFileContent.length}자)`);
+  }
+
   // 주식 컨텍스트 + 뉴스 컨텍스트 결합
-  const combinedContext = [stockContext, newsContext].filter(Boolean).join("\n") || undefined;
-  const { system, user } = buildPrompt(keyword, combinedContext);
+  const combinedContext = categoryOverride === "featured-stocks" && dataFileContent
+    ? dataFileContent
+    : [stockContext, newsContext].filter(Boolean).join("\n") || undefined;
+  const { system, user } = buildPrompt(keyword, combinedContext, categoryOverride ?? undefined);
 
   const response = await client.messages.create({
     model: MODEL,
@@ -302,7 +346,7 @@ async function main(): Promise<void> {
 
   console.log("✅ Claude 응답 수신 완료");
 
-  const post = parseResponse(rawText, keyword);
+  const post = parseResponse(rawText, keyword, categoryOverride ?? undefined);
 
   // -----------------------------------------------------------------------
   // Step 3: 관련주 데이터 (수동 지정 없었으면 Claude 응답의 종목으로 조회)
@@ -336,6 +380,13 @@ async function main(): Promise<void> {
     thumbnailPath = `/images/thumbnails/${destFileName}`;
     imageCredit = "";
     console.log(`🖼️  수동 썸네일 적용: ${manualThumbnail}`);
+  } else if (categoryOverride === "featured-stocks") {
+    // 주식특징주: 차트 배경 + 날짜 텍스트 오버레이 썸네일
+    const now = new Date();
+    const dateLabel = `${now.getMonth() + 1}월 ${now.getDate()}일자`;
+    const result = await generateFeaturedStocksThumbnail(slug, dateLabel);
+    thumbnailPath = result.path;
+    imageCredit = result.credit;
   } else {
     const result = await findAndDownloadThumbnail(keyword, slug);
     thumbnailPath = result.path;
