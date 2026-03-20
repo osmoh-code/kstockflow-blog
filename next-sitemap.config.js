@@ -6,6 +6,10 @@ const config = {
   changefreq: "daily",
   priority: 0.7,
   exclude: ["/api/*", "/admin/*", "/feed.xml"],
+  
+  // 구글 봇이 헤매지 않도록 단일 사이트맵으로 묶어주는 필수 옵션
+  generateIndexSitemap: false, 
+
   robotsTxtOptions: {
     policies: [
       {
@@ -14,9 +18,7 @@ const config = {
         disallow: ["/api/", "/admin/"],
       },
     ],
-    additionalSitemaps: [
-      "https://kstockflow.com/sitemap.xml",
-    ],
+    // 문제를 일으켰던 additionalSitemaps는 삭제했습니다.
   },
   transform: async (config, path) => {
     // Blog post pages get higher priority and daily updates
