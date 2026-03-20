@@ -10,6 +10,8 @@ const config = {
   // 구글 봇이 헤매지 않도록 단일 사이트맵으로 묶어주는 필수 옵션
   generateIndexSitemap: false, 
 
+  outDir: "out",
+
   robotsTxtOptions: {
     policies: [
       {
