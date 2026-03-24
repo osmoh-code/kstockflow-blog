@@ -60,7 +60,7 @@ function insertAdsAfterHeadings(htmlContent: string): string {
 
 export default async function PostContent({ content, meta }: PostContentProps) {
   const processed = await remark()
-    .use(remarkGfm)
+    .use(remarkGfm, { singleTilde: false })
     .use(remarkRehype, { allowDangerousHtml: true })
     .use(rehypeRaw)
     .use(rehypeStringify)
