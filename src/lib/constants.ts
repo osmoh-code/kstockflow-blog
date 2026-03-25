@@ -1,7 +1,7 @@
 export const SITE_NAME = "K-주식 핫이슈";
 export const SITE_URL = "https://kstockflow.com";
 export const SITE_DESCRIPTION =
-  "한국 주식 시장의 특징주, 핫이슈, 신규 상장주, 재료와 테마 뉴스를 한눈에. 재료 기반의 깊이 있는 시장 인사이트를 제공합니다.";
+  "한국 주식 시장의 특징주, 핫이슈, 신규 상장주를 한눈에. 재료 기반의 깊이 있는 시장 인사이트를 제공합니다.";
 export const AUTHOR_NAME = "K-주식 핫이슈 편집팀";
 export const DEFAULT_OG_IMAGE = "/images/og-default.png";
 
@@ -34,12 +34,6 @@ export const CATEGORIES: readonly Category[] = [
     emoji: "🆕",
     color: "#2563eb",
   },
-  {
-    name: "재료와 테마 뉴스",
-    slug: "theme-news",
-    emoji: "📰",
-    color: "#10b981",
-  },
 ] as const;
 
 export const NAV_LINKS = [
@@ -47,5 +41,4 @@ export const NAV_LINKS = [
   { label: "주식특징주", href: "/category/featured-stocks" },
   { label: "핫이슈", href: "/category/hot-issues" },
   { label: "신규 상장주", href: "/category/new-stocks" },
-  { label: "재료와 테마 뉴스", href: "/category/theme-news" },
 ] as const;

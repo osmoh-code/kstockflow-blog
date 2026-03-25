@@ -16,7 +16,7 @@
 
 - **사이트**: https://kstockflow.com
 - **기술 스택**: Next.js 15 + MDX + Tailwind CSS, Vercel 배포
-- **용도**: 한국 주식 시장 분석 블로그 (특징주, 신규상장주, 테마뉴스, 핫이슈)
+- **용도**: 한국 주식 시장 분석 블로그 (특징주, 신규상장주, 핫이슈)
 - **글 자동생성**: `npx tsx scripts/generate-post.ts "키워드" --category <카테고리>`
 
 ## 카테고리별 글 작성 명령어
@@ -31,8 +31,8 @@ npx tsx scripts/generate-post.ts "회사명" --category new-stocks
 # 핫이슈
 npx tsx scripts/generate-post.ts "키워드" --category hot-issues
 
-# 테마뉴스
-npx tsx scripts/generate-post.ts "키워드" --category theme-news
+# 핫이슈 (관련주 분석, 테마 분석 등 — 기본 카테고리)
+npx tsx scripts/generate-post.ts "키워드" --category hot-issues
 ```
 
 ## 썸네일 규칙 (반드시 준수)
@@ -52,7 +52,7 @@ npx tsx scripts/generate-post.ts "키워드" --category theme-news
 - **외부 스톡사이트에서 회사 로고를 검색하지 않음** (한국 기업 로고는 스톡사이트에 없음)
 - 회사명 길이에 따라 폰트 크기 자동 조절
 
-### 핫이슈 / 테마뉴스
+### 핫이슈
 
 - Unsplash → Pixabay → Pexels 순서로 키워드 기반 이미지 검색
 - **한국어 키워드를 영어로 변환 + 관련 분야로 확장**하여 검색
@@ -112,7 +112,7 @@ npx tsx scripts/generate-post.ts "키워드" --category theme-news
 
 ---
 
-## 핫이슈 / 테마뉴스 글 작성 규칙
+## 핫이슈 글 작성 규칙
 
 ### 데이터 소스
 

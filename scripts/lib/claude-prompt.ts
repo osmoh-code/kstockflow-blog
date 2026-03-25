@@ -23,10 +23,10 @@ export interface PromptPair {
   readonly user: string;
 }
 
-export type CategorySlugType = "featured-stocks" | "hot-issues" | "new-stocks" | "theme-news";
+export type CategorySlugType = "featured-stocks" | "hot-issues" | "new-stocks";
 
 // ---------------------------------------------------------------------------
-// Category detection keywords (updated: 신규 상장주, 재료와 테마 뉴스)
+// Category detection keywords
 // ---------------------------------------------------------------------------
 
 const CATEGORY_KEYWORDS: Record<string, readonly string[]> = {
@@ -35,14 +35,12 @@ const CATEGORY_KEYWORDS: Record<string, readonly string[]> = {
   ],
   "핫이슈": [
     "이슈", "뉴스", "속보", "논란", "사건", "이벤트", "화제",
-  ],
-  "신규 상장주": [
-    "신규", "IPO", "상장", "공모주", "청약", "신규상장", "스팩",
-  ],
-  "재료와 테마 뉴스": [
     "재료", "테마", "정책", "금리", "환율", "GDP", "물가", "경제",
     "한국은행", "연준", "Fed", "수출", "반도체", "AI", "배터리",
     "전기차", "바이오", "원전", "수소", "로봇", "드론", "방산",
+  ],
+  "신규 상장주": [
+    "신규", "IPO", "상장", "공모주", "청약", "신규상장", "스팩",
   ],
 } as const;
 
@@ -50,7 +48,6 @@ const CATEGORY_SLUGS: Record<string, string> = {
   "주식특징주": "featured-stocks",
   "핫이슈": "hot-issues",
   "신규 상장주": "new-stocks",
-  "재료와 테마 뉴스": "theme-news",
 };
 
 // ---------------------------------------------------------------------------
@@ -63,11 +60,11 @@ export function detectCategory(keyword: string): string {
       return category;
     }
   }
-  return "재료와 테마 뉴스"; // sensible default
+  return "핫이슈"; // sensible default
 }
 
 export function getCategorySlug(categoryName: string): string {
-  return CATEGORY_SLUGS[categoryName] ?? "theme-news";
+  return CATEGORY_SLUGS[categoryName] ?? "hot-issues";
 }
 
 const SLUG_TO_CATEGORY: Record<string, string> = Object.fromEntries(
@@ -75,7 +72,7 @@ const SLUG_TO_CATEGORY: Record<string, string> = Object.fromEntries(
 );
 
 export function getCategoryName(slug: string): string {
-  return SLUG_TO_CATEGORY[slug] ?? "재료와 테마 뉴스";
+  return SLUG_TO_CATEGORY[slug] ?? "핫이슈";
 }
 
 // ---------------------------------------------------------------------------
