@@ -58,10 +58,10 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       title: `${category.name} | ${SITE_NAME}`,
       description,
       type: "website",
-      url: `${SITE_URL}/category/${slug}`,
+      url: `${SITE_URL}/category/${slug}/`,
     },
     alternates: {
-      canonical: `${SITE_URL}/category/${slug}`,
+      canonical: `${SITE_URL}/category/${slug}/`,
     },
   };
 }

@@ -82,7 +82,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       ],
     },
     alternates: {
-      canonical: `${SITE_URL}/posts/${slug}`,
+      canonical: `${SITE_URL}/posts/${slug}/`,
     },
   };
 }

@@ -8,11 +8,11 @@ export const metadata: Metadata = {
   openGraph: {
     title: `문의하기 | ${SITE_NAME}`,
     description: `${SITE_NAME}에 대한 문의, 제안, 피드백을 보내주세요.`,
-    url: `${SITE_URL}/contact`,
+    url: `${SITE_URL}/contact/`,
     type: "website",
   },
   alternates: {
-    canonical: `${SITE_URL}/contact`,
+    canonical: `${SITE_URL}/contact/`,
   },
 };
 

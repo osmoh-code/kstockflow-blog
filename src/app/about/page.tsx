@@ -10,11 +10,11 @@ export const metadata: Metadata = {
     title: `소개 | ${SITE_NAME}`,
     description:
       "K-주식 핫이슈는 개인 투자자를 위한 재료 기반 한국 주식 시장 분석 블로그입니다.",
-    url: `${SITE_URL}/about`,
+    url: `${SITE_URL}/about/`,
     type: "website",
   },
   alternates: {
-    canonical: `${SITE_URL}/about`,
+    canonical: `${SITE_URL}/about/`,
   },
 };
 

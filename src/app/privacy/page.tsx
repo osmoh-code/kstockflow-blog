@@ -8,11 +8,11 @@ export const metadata: Metadata = {
   openGraph: {
     title: `개인정보처리방침 | ${SITE_NAME}`,
     description: `${SITE_NAME}의 개인정보처리방침입니다.`,
-    url: `${SITE_URL}/privacy`,
+    url: `${SITE_URL}/privacy/`,
     type: "website",
   },
   alternates: {
-    canonical: `${SITE_URL}/privacy`,
+    canonical: `${SITE_URL}/privacy/`,
   },
 };
 

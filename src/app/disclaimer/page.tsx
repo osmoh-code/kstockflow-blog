@@ -8,11 +8,11 @@ export const metadata: Metadata = {
   openGraph: {
     title: `투자 면책 고지 | ${SITE_NAME}`,
     description: `${SITE_NAME}의 투자 면책 고지입니다.`,
-    url: `${SITE_URL}/disclaimer`,
+    url: `${SITE_URL}/disclaimer/`,
     type: "website",
   },
   alternates: {
-    canonical: `${SITE_URL}/disclaimer`,
+    canonical: `${SITE_URL}/disclaimer/`,
   },
 };
 
