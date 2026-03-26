@@ -6,8 +6,9 @@ import rehypeStringify from "rehype-stringify";
 import {
   generateArticleStructuredData,
 } from "@/lib/seo";
-import type { PostMeta } from "@/lib/posts";
+import { getPostsByCategory, type PostMeta } from "@/lib/posts";
 import AdPlacement from "./AdPlacement";
+import BlogCard from "./BlogCard";
 
 interface PostContentProps {
   readonly content: string;
@@ -79,6 +80,18 @@ export default async function PostContent({ content, meta }: PostContentProps) {
 
   const structuredData = generateArticleStructuredData(meta);
 
+  // 본문을 "자주 묻는 질문" H2 기준으로 분할 → 그 사이에 추천글 카드 삽입
+  const faqSplitRegex = /(<h2[^>]*id="[^"]*"[^>]*>.*?자주 묻는 질문.*?<\/h2>)/;
+  const parts = htmlContent.split(faqSplitRegex);
+  const beforeFaq = parts[0] ?? htmlContent;
+  const faqHeading = parts[1] ?? "";
+  const afterFaqHeading = parts.slice(2).join("");
+
+  // 핫이슈 최신글 3개 (본문 내 "함께 보면 좋은 분석 글")
+  const recommendedPosts = getPostsByCategory("hot-issues")
+    .filter((p) => p.meta.slug !== meta.slug)
+    .slice(0, 3);
+
   return (
     <div>
       {/* Structured Data */}
@@ -111,11 +124,33 @@ export default async function PostContent({ content, meta }: PostContentProps) {
         </nav>
       )}
 
-      {/* Article Content */}
+      {/* Article Content — FAQ 앞 */}
       <div
         className="prose prose-lg max-w-none"
-        dangerouslySetInnerHTML={{ __html: htmlContent }}
+        dangerouslySetInnerHTML={{ __html: beforeFaq }}
       />
+
+      {/* 함께 보면 좋은 분석 글 — 본문 내 FAQ 바로 위 */}
+      {recommendedPosts.length > 0 && (
+        <section className="my-10 rounded-2xl border border-gray-100 bg-gray-50 p-6">
+          <h2 className="mb-5 text-lg font-bold text-gray-900">
+            함께 보면 좋은 분석 글
+          </h2>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            {recommendedPosts.map((post) => (
+              <BlogCard key={post.meta.slug} post={post.meta} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Article Content — FAQ 이후 */}
+      {faqHeading && (
+        <div
+          className="prose prose-lg max-w-none"
+          dangerouslySetInnerHTML={{ __html: faqHeading + afterFaqHeading }}
+        />
+      )}
 
       {/* Bottom Ad */}
       <AdPlacement type="post-bottom" />
