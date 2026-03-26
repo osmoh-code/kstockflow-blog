@@ -244,8 +244,10 @@ export default async function PostPage({ params }: PageProps) {
         {/* Recommended Hot-Issues Posts */}
         <RecommendedPosts currentSlug={slug} currentCategory={meta.category} />
 
-        {/* Related Posts */}
-        <RelatedPosts currentSlug={slug} category={meta.category} />
+        {/* Related Posts (핫이슈 글은 RecommendedPosts와 중복되므로 생략) */}
+        {meta.category !== "hot-issues" && (
+          <RelatedPosts currentSlug={slug} category={meta.category} />
+        )}
       </div>
     </>
   );

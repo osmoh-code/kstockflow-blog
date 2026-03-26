@@ -10,9 +10,6 @@ export default function RecommendedPosts({
   currentSlug,
   currentCategory,
 }: RecommendedPostsProps) {
-  // 핫이슈 글이면 이미 RelatedPosts에서 같은 카테고리를 보여주므로 생략
-  if (currentCategory === "hot-issues") return null;
-
   const posts = getPostsByCategory("hot-issues")
     .filter((p) => p.meta.slug !== currentSlug)
     .slice(0, 3);
