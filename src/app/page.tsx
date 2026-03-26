@@ -54,17 +54,19 @@ export default function HomePage() {
               </Link>
             </div>
 
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3 items-start">
-              {postsByCategory.map((posts, colIdx) => (
-                <div key={columnCategories[colIdx]} className="flex flex-col gap-6">
-                  {posts.map((post) => (
-                    <BlogCard
-                      key={post.meta.slug}
-                      post={post.meta}
-                    />
-                  ))}
-                </div>
-              ))}
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3">
+              {Array.from(
+                { length: Math.max(...postsByCategory.map((p) => p.length)) },
+                (_, rowIdx) =>
+                  postsByCategory.map((posts, colIdx) =>
+                    posts[rowIdx] ? (
+                      <BlogCard
+                        key={posts[rowIdx].meta.slug}
+                        post={posts[rowIdx].meta}
+                      />
+                    ) : null
+                  )
+              )}
             </div>
 
             {allPosts.length === 0 && (

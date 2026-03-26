@@ -29,6 +29,7 @@ import {
 import CategoryBadge from "@/components/CategoryBadge";
 import PostContent from "@/components/PostContent";
 import RelatedPosts from "@/components/RelatedPosts";
+import RecommendedPosts from "@/components/RecommendedPosts";
 import AdPlacement from "@/components/AdPlacement";
 
 interface PageProps {
@@ -239,6 +240,9 @@ export default async function PostPage({ params }: PageProps) {
             </a>
           </div>
         </div>
+
+        {/* Recommended Hot-Issues Posts */}
+        <RecommendedPosts currentSlug={slug} currentCategory={meta.category} />
 
         {/* Related Posts */}
         <RelatedPosts currentSlug={slug} category={meta.category} />

@@ -56,9 +56,12 @@ export function getAllPosts(): readonly Post[] {
 
   const posts = files.map((file) => parsePostFile(file));
 
-  return [...posts].sort(
-    (a, b) => new Date(b.meta.date).getTime() - new Date(a.meta.date).getTime()
-  );
+  return [...posts].sort((a, b) => {
+    const dateDiff =
+      new Date(b.meta.date).getTime() - new Date(a.meta.date).getTime();
+    if (dateDiff !== 0) return dateDiff;
+    return b.meta.slug.localeCompare(a.meta.slug);
+  });
 }
 
 export function getPostBySlug(slug: string): Post | null {

@@ -71,6 +71,12 @@ export default async function PostContent({ content, meta }: PostContentProps) {
   const headings = extractHeadings(htmlContent);
   htmlContent = insertAdsAfterHeadings(htmlContent);
 
+  // "함께 보면 좋은 분석 글" 텍스트 섹션 제거 (컴포넌트로 대체)
+  htmlContent = htmlContent.replace(
+    /<h3[^>]*>함께 보면 좋은 분석 글<\/h3>\s*<ul>[\s\S]*?<\/ul>/,
+    ""
+  );
+
   const structuredData = generateArticleStructuredData(meta);
 
   return (

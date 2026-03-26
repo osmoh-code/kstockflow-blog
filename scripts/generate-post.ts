@@ -23,6 +23,7 @@ import {
   type GeneratedPost,
   type CategorySlugType,
 } from "./lib/claude-prompt";
+import { validatePost } from "./lib/post-validator";
 import {
   getMultipleStockInfo,
   stockSummaryTable,
@@ -395,7 +396,33 @@ async function main(): Promise<void> {
 
   console.log("✅ Claude 응답 수신 완료");
 
-  const post = parseResponse(rawText, keyword, categoryOverride ?? undefined);
+  let post = parseResponse(rawText, keyword, categoryOverride ?? undefined);
+
+  // -----------------------------------------------------------------------
+  // Step 2.5: "함께 보면 좋은 분석 글" 텍스트 자동 제거 (컴포넌트로 대체)
+  // -----------------------------------------------------------------------
+  if (post.content.includes("함께 보면 좋은 분석 글")) {
+    console.warn('⚠️ "함께 보면 좋은 분석 글" 텍스트 감지 → 자동 제거 (컴포넌트로 대체)');
+    post = { ...post, content: post.content.replace(/###\s*함께 보면 좋은 분석 글[\s\S]*?(?=##|$)/, "") };
+  }
+
+  // -----------------------------------------------------------------------
+  // Step 2.6: 카테고리별 필수 요소 검증 (claude-prompt.ts 규칙과 1:1 대응)
+  // -----------------------------------------------------------------------
+  const validation = validatePost(post, categoryOverride ?? "hot-issues", keyword);
+
+  if (validation.warnings.length > 0) {
+    console.warn("\n⚠️ 검증 경고:");
+    validation.warnings.forEach((w) => console.warn(`   - ${w}`));
+  }
+
+  if (!validation.passed) {
+    console.error("\n❌ 필수 요소 검증 실패:");
+    validation.errors.forEach((e) => console.error(`   - ${e}`));
+    console.error("\n🔄 다시 생성하려면 동일 명령어를 재실행하세요.\n");
+    process.exit(1);
+  }
+  console.log(`✅ ${categoryOverride ?? "hot-issues"} 필수 요소 검증 통과`);
 
   // -----------------------------------------------------------------------
   // Step 3: 관련주 데이터 (수동 지정 없었으면 Claude 응답의 종목으로 조회)
