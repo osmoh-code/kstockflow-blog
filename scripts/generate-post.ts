@@ -361,6 +361,27 @@ async function main(): Promise<void> {
     console.log(`📄 데이터 파일 로드: ${dataFile} (${dataFileContent.length}자)`);
   }
 
+  // new-stocks: scripts/data/ 폴더에서 38커뮤니케이션 데이터 자동 탐지
+  if (categoryOverride === "new-stocks" && !dataFileContent) {
+    const dataDir = path.join(process.cwd(), "scripts", "data");
+    if (fs.existsSync(dataDir)) {
+      const dataFiles = fs.readdirSync(dataDir).filter((f) => f.endsWith(".txt"));
+      // 키워드(회사명)와 매칭되는 파일 찾기 (파일명에 키워드 포함 또는 파일 내용에 종목명 포함)
+      for (const df of dataFiles) {
+        const dfPath = path.join(dataDir, df);
+        const dfContent = fs.readFileSync(dfPath, "utf-8");
+        if (dfContent.includes(keyword) || df.toLowerCase().includes(keyword.toLowerCase())) {
+          dataFileContent = dfContent;
+          console.log(`📄 38커뮤니케이션 데이터 자동 탐지: ${df} (${dfContent.length}자)`);
+          break;
+        }
+      }
+      if (!dataFileContent) {
+        console.warn(`⚠️ scripts/data/에서 "${keyword}" 관련 38데이터 파일을 찾지 못했습니다.`);
+      }
+    }
+  }
+
   // featured-stocks: 특징주/ 폴더 HTML 자동 로드 (--data-file 없어도 동작)
   if (categoryOverride === "featured-stocks" && !dataFileContent) {
     const featuredDir = path.join(process.cwd(), "특징주");
@@ -430,7 +451,8 @@ async function main(): Promise<void> {
     // featured-stocks: 데이터 파일 + 뉴스 결합 (데이터 우선)
     combinedContext = [dataFileContent, newsContext].filter(Boolean).join("\n\n") || undefined;
   } else if (categoryOverride === "new-stocks") {
-    combinedContext = [ipoData, newsContext, stockContext].filter(Boolean).join("\n\n") || undefined;
+    // 38커뮤니케이션 데이터를 최우선으로 포함 (dataFileContent가 핵심)
+    combinedContext = [dataFileContent, ipoData, newsContext, stockContext].filter(Boolean).join("\n\n") || undefined;
   } else {
     combinedContext = [stockContext, newsContext].filter(Boolean).join("\n") || undefined;
   }
