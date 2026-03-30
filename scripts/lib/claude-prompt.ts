@@ -636,7 +636,9 @@ export function parseResponse(
     title = getValue("title") || keyword;
   } else {
     const stockCount = relatedStocks.length || 5;
-    title = `${keyword} 관련주 TOP ${stockCount}`;
+    // 키워드에 이미 "관련주"가 포함되어 있으면 중복 방지
+    const suffix = keyword.includes("관련주") ? `TOP ${stockCount}` : `관련주 TOP ${stockCount}`;
+    title = `${keyword} ${suffix}`;
   }
 
   const description =
