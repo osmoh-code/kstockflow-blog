@@ -516,6 +516,19 @@ async function main(): Promise<void> {
     }
   }
 
+  // 면책 고지 누락 시 자동 추가
+  if (!fixedContent.includes("투자의 책임은 투자자 본인에게 있습니다")) {
+    // FAQ 섹션 앞에 면책 고지 삽입
+    const disclaimerText = "\n\n> ※ 본 글은 정보 제공을 목적으로 하며, 투자의 책임은 투자자 본인에게 있습니다.\n";
+    const faqIdx = fixedContent.search(/^##\s.*자주 묻는 질문/m);
+    if (faqIdx !== -1) {
+      fixedContent = fixedContent.slice(0, faqIdx) + disclaimerText + "\n" + fixedContent.slice(faqIdx);
+    } else {
+      fixedContent += disclaimerText;
+    }
+    console.log("🔧 면책 고지 자동 추가");
+  }
+
   // FAQ 섹션 누락 시 자동 추가 (H2 레벨로 존재해야 함)
   if (!/^##\s.*자주 묻는 질문/m.test(fixedContent)) {
     // 기존에 H3 등으로 잘못 들어간 FAQ 제거
