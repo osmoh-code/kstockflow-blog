@@ -80,21 +80,76 @@ function loadApiKey(): string {
   return key;
 }
 
+// 한글 키워드 → 영문 슬러그 매핑 (SEO용, 긴 키워드부터 매칭)
+const KOREAN_TO_SLUG: Record<string, string> = {
+  // 복합어 (긴 것 우선)
+  "신재생에너지": "renewable-energy", "광반도체": "optical-semiconductor",
+  "광통신": "optical-communication", "양자컴퓨터": "quantum-computing",
+  "자율주행": "autonomous-driving", "사이버보안": "cybersecurity",
+  "스페이스X": "spacex", "천연가스": "natural-gas", "2차전지": "secondary-battery",
+  "전기차": "ev", "경기침체": "recession", "인플레이션": "inflation",
+  // 지정학
+  "호르무즈": "hormuz", "해협": "strait", "봉쇄": "blockade",
+  "중동": "middle-east", "이란": "iran", "우크라이나": "ukraine",
+  "러시아": "russia", "대만": "taiwan", "미국": "us",
+  // 방산/군사
+  "전쟁": "war", "방산": "defense", "드론": "drone",
+  "미사일": "missile", "군사": "military",
+  // 에너지/자원
+  "유가": "oil", "석유": "petroleum", "해운": "shipping",
+  "나프타": "naphtha", "태양광": "solar", "풍력": "wind",
+  "원전": "nuclear", "수소": "hydrogen", "에너지": "energy",
+  "리튬": "lithium", "희토류": "rare-earth", "전력": "power",
+  // 테크
+  "반도체": "semiconductor", "엔비디아": "nvidia", "로봇": "robot",
+  "블록체인": "blockchain", "메타버스": "metaverse", "클라우드": "cloud",
+  "통신": "telecom",
+  // 산업
+  "배터리": "battery", "바이오": "bio", "제약": "pharma",
+  "건설": "construction", "조선": "shipbuilding", "철강": "steel",
+  "화학": "chemical", "물류": "logistics", "플라스틱": "plastic",
+  "포장재": "packaging",
+  // 경제
+  "상장": "ipo", "공모주": "ipo", "금리": "interest-rate",
+  "환율": "forex",
+  // 수식어
+  "가격": "price", "급등": "surge", "급락": "crash",
+  "대란": "crisis", "상용화": "commercialization", "수급": "supply",
+  "불안": "uncertainty", "확대": "expansion", "전환": "transition",
+  "수혜주": "stocks", "관련주": "stocks", "테마주": "stocks", "대장주": "stocks",
+  // 인물/정치
+  "이재명": "lee-jaemyung", "트럼프": "trump",
+  // 기타
+  "우주": "space", "위성": "satellite", "게임": "gaming",
+  "식품": "food", "화장품": "cosmetics", "부동산": "real-estate",
+  "교육": "education", "관광": "tourism",
+};
+
 function toSlug(text: string): string {
-  // 영문/숫자만 slug에 포함 (Next.js 정적 빌드 한글 호환 문제 방지)
-  // 한글은 제거하되, 한글만 있는 경우 타임스탬프로 고유 slug 생성
-  const slug = text
-    .replace(/[가-힣]+/g, " ")      // 한글 → 공백 (단어 구분 유지)
-    .replace(/[^\w\s-]/g, "")       // 특수문자 제거
+  // 1단계: 한글 키워드를 영문으로 치환 (긴 키워드부터 매칭)
+  let converted = text;
+  const sortedKeys = Object.keys(KOREAN_TO_SLUG).sort((a, b) => b.length - a.length);
+  for (const ko of sortedKeys) {
+    if (converted.includes(ko)) {
+      converted = converted.replace(new RegExp(ko, "g"), ` ${KOREAN_TO_SLUG[ko]} `);
+    }
+  }
+
+  // 2단계: 영문/숫자만 남기고 슬러그 생성
+  const slug = converted
+    .replace(/[가-힣]+/g, " ")       // 매핑 안 된 한글 제거
+    .replace(/[^\w\s-]/g, "")        // 특수문자 제거
     .replace(/\s+/g, "-")
     .replace(/-+/g, "-")
     .replace(/^-|-$/g, "")
-    .slice(0, 60)
     .toLowerCase();
 
-  if (slug) return slug;
+  // "stocks" 중복 제거 (관련주+수혜주 동시 매칭 시)
+  const deduped = [...new Set(slug.split("-"))].join("-").slice(0, 60);
 
-  // 순한글 키워드: 현재 시간 기반 고유 ID 생성
+  if (deduped) return deduped;
+
+  // 매핑 실패 시 타임스탬프 fallback
   const ts = Date.now().toString(36).slice(-6);
   return `post-${ts}`;
 }

@@ -1,0 +1,49 @@
+{
+  "redirects": [
+    {
+      "source": "/posts/2026-03-19-post-woyvk4/",
+      "destination": "/posts/2026-03-19-hormuz-oil-shipping-stocks/",
+      "permanent": true
+    },
+    {
+      "source": "/posts/2026-03-19-post-wp72hq/",
+      "destination": "/posts/2026-03-19-war-defense-stocks/",
+      "permanent": true
+    },
+    {
+      "source": "/posts/2026-03-19-post-wp9w85/",
+      "destination": "/posts/2026-03-19-us-drone-war-stocks/",
+      "permanent": true
+    },
+    {
+      "source": "/posts/2026-03-24-post-4ej7sd/",
+      "destination": "/posts/2026-03-24-optical-communication-stocks/",
+      "permanent": true
+    },
+    {
+      "source": "/posts/2026-03-24-post-4e3n8s/",
+      "destination": "/posts/2026-03-24-naphtha-plastic-stocks/",
+      "permanent": true
+    },
+    {
+      "source": "/posts/2026-03-26-post-7fa4vu/",
+      "destination": "/posts/2026-03-26-naphtha-packaging-stocks/",
+      "permanent": true
+    },
+    {
+      "source": "/posts/2026-03-25-post-5a3i5p/",
+      "destination": "/posts/2026-03-25-optical-semiconductor-stocks/",
+      "permanent": true
+    },
+    {
+      "source": "/posts/2026-03-30-post-d8qysa/",
+      "destination": "/posts/2026-03-30-ev-stocks/",
+      "permanent": true
+    },
+    {
+      "source": "/posts/2026-03-30-post-d7j377/",
+      "destination": "/posts/2026-03-30-renewable-energy-stocks/",
+      "permanent": true
+    }
+  ]
+}
