@@ -361,6 +361,63 @@ async function main(): Promise<void> {
     console.log(`📄 데이터 파일 로드: ${dataFile} (${dataFileContent.length}자)`);
   }
 
+  // featured-stocks: 특징주/ 폴더 HTML 자동 로드 (--data-file 없어도 동작)
+  if (categoryOverride === "featured-stocks" && !dataFileContent) {
+    const featuredDir = path.join(process.cwd(), "특징주");
+    // 1) scripts/data/YYYY-MM-DD-featured-stocks.md 자동 탐지
+    const autoDataFile = path.join(process.cwd(), "scripts", "data", `${todayDate()}-featured-stocks.md`);
+    if (fs.existsSync(autoDataFile)) {
+      dataFileContent = fs.readFileSync(autoDataFile, "utf-8");
+      console.log(`📄 데이터 파일 자동 로드: ${autoDataFile} (${dataFileContent.length}자)`);
+    }
+    // 2) 특징주/ 폴더 HTML 파일 자동 로드
+    if (fs.existsSync(featuredDir)) {
+      const htmlFiles = fs.readdirSync(featuredDir).filter((f) => f.endsWith(".html"));
+      if (htmlFiles.length > 0) {
+        console.log(`📄 특징주/ 폴더에서 HTML ${htmlFiles.length}개 로드 중...`);
+        const htmlTexts: string[] = [];
+        for (const htmlFile of htmlFiles) {
+          const filePath = path.join(featuredDir, htmlFile);
+          let raw: Buffer;
+          try {
+            raw = fs.readFileSync(filePath);
+          } catch {
+            continue;
+          }
+          // EUC-KR → UTF-8 변환 시도
+          let text = "";
+          try {
+            const decoder = new TextDecoder("euc-kr");
+            text = decoder.decode(raw);
+          } catch {
+            text = raw.toString("utf-8");
+          }
+          // HTML 태그 제거
+          text = text
+            .replace(/<script[\s\S]*?<\/script>/gi, "")
+            .replace(/<style[\s\S]*?<\/style>/gi, "")
+            .replace(/<[^>]+>/g, " ")
+            .replace(/&nbsp;/g, " ")
+            .replace(/&amp;/g, "&")
+            .replace(/&lt;/g, "<")
+            .replace(/&gt;/g, ">")
+            .replace(/\s+/g, " ")
+            .trim();
+          if (text.length > 100) {
+            htmlTexts.push(`=== ${htmlFile} ===\n${text}`);
+            console.log(`  ✅ ${htmlFile} (${text.length}자)`);
+          }
+        }
+        if (htmlTexts.length > 0) {
+          const htmlContext = htmlTexts.join("\n\n");
+          dataFileContent = dataFileContent
+            ? dataFileContent + "\n\n## 원본 HTML 데이터\n\n" + htmlContext
+            : htmlContext;
+        }
+      }
+    }
+  }
+
   // 38.co.kr IPO 데이터 (선택사항)
   let ipoData = "";
   if (ipoUrl) {
@@ -369,8 +426,9 @@ async function main(): Promise<void> {
 
   // 컨텍스트 결합
   let combinedContext: string | undefined;
-  if (categoryOverride === "featured-stocks" && dataFileContent) {
-    combinedContext = dataFileContent;
+  if (categoryOverride === "featured-stocks") {
+    // featured-stocks: 데이터 파일 + 뉴스 결합 (데이터 우선)
+    combinedContext = [dataFileContent, newsContext].filter(Boolean).join("\n\n") || undefined;
   } else if (categoryOverride === "new-stocks") {
     combinedContext = [ipoData, newsContext, stockContext].filter(Boolean).join("\n\n") || undefined;
   } else {

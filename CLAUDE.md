@@ -226,7 +226,8 @@ npx tsx scripts/generate-post.ts "키워드" --category hot-issues
 
 ### 데이터 소스
 
-- 사용자가 당일 특징주 데이터를 직접 제공
+- `특징주/` 폴더에 HTML 파일 넣으면 스크립트가 자동으로 읽음 (EUC-KR 자동 변환)
+- `scripts/data/YYYY-MM-DD-featured-stocks.md` 파일도 자동 탐지
 - Google 뉴스 RSS로 최신 뉴스 자동 검색
 
 ### 글 구조 (고정)
@@ -254,6 +255,11 @@ npx tsx scripts/generate-post.ts "키워드" --category hot-issues
 
    - 3-4줄 간결한 투자 주의사항
    - 투자 면책 고지
+6. **자주 묻는 질문** (반드시 포함)
+
+   - ### Q. 형식으로 3~4개
+   - 오늘 가장 많이 오른 종목, 대장주, 시장 주도 테마, 하락 원인 등
+   - 실제 검색할 법한 질문으로 작성
 
 ### 제목 형식
 
