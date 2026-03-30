@@ -457,11 +457,34 @@ async function main(): Promise<void> {
   let post = parseResponse(rawText, keyword, categoryOverride ?? undefined);
 
   // -----------------------------------------------------------------------
-  // Step 2.5: "함께 보면 좋은 분석 글" 텍스트 자동 제거 (컴포넌트로 대체)
+  // Step 2.5: 자동 후처리 (볼드→mark, 함께보면좋은분석글 제거, FAQ 보장)
   // -----------------------------------------------------------------------
-  if (post.content.includes("함께 보면 좋은 분석 글")) {
-    console.warn('⚠️ "함께 보면 좋은 분석 글" 텍스트 감지 → 자동 제거 (컴포넌트로 대체)');
-    post = { ...post, content: post.content.replace(/###\s*함께 보면 좋은 분석 글[\s\S]*?(?=##|$)/, "") };
+  let fixedContent = post.content;
+
+  // 볼드(**텍스트**) → <mark>텍스트</mark> 자동 변환
+  const boldCount = (fixedContent.match(/\*\*[^*]+\*\*/g) || []).length;
+  if (boldCount > 0) {
+    fixedContent = fixedContent.replace(/\*\*([^*]+)\*\*/g, "<mark>$1</mark>");
+    console.log(`🔧 볼드 ${boldCount}개 → <mark> 자동 변환`);
+  }
+
+  // "함께 보면 좋은 분석 글" 텍스트 자동 제거 (컴포넌트로 대체)
+  if (fixedContent.includes("함께 보면 좋은 분석 글")) {
+    fixedContent = fixedContent.replace(/###\s*함께 보면 좋은 분석 글[\s\S]*?(?=##|$)/, "");
+    console.log('🔧 "함께 보면 좋은 분석 글" 자동 제거');
+  }
+
+  // FAQ 섹션 누락 시 자동 추가 (H2 레벨로 존재해야 함)
+  if (!/^##\s.*자주 묻는 질문/m.test(fixedContent)) {
+    // 기존에 H3 등으로 잘못 들어간 FAQ 제거
+    fixedContent = fixedContent.replace(/###\s*자주 묻는 질문[\s\S]*$/, "").trimEnd();
+    const faqSection = `\n\n## 자주 묻는 질문\n\n### Q. ${keyword.replace(/관련주$/, "").trim()} 관련주는 어떤 종목이 있나요?\n\n${post.relatedStocks.join(", ")} 등이 대표적인 관련주로 꼽힙니다.\n\n### Q. 대장주는 무엇인가요?\n\n${post.relatedStocks[0] || "해당 테마"}이 시가총액과 거래대금 기준으로 대장주에 해당합니다.\n\n### Q. 주가 전망은 어떤가요?\n\n정책 방향과 관련 산업 성장세에 따라 중장기적 수혜가 기대되나, 단기 변동성에 유의할 필요가 있습니다. 투자 전 기업 실적과 밸류에이션을 반드시 확인하시기 바랍니다.\n`;
+    fixedContent += faqSection;
+    console.log("🔧 FAQ 섹션 자동 추가");
+  }
+
+  if (fixedContent !== post.content) {
+    post = { ...post, content: fixedContent };
   }
 
   // -----------------------------------------------------------------------

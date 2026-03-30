@@ -118,7 +118,7 @@ function validateHotIssues(post: GeneratedPost, keyword: string): ValidationResu
     "자주 묻는 질문",
   ];
   for (const pattern of requiredPatterns) {
-    const regex = new RegExp(`^## .+${pattern.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`, "m");
+    const regex = new RegExp(`^## .*${pattern.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`, "m");
     if (!regex.test(c)) {
       errors.push(`필수 섹션 누락: "${pattern}" 포함된 H2 없음`);
     }
