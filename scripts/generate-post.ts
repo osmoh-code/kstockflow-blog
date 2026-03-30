@@ -474,6 +474,26 @@ async function main(): Promise<void> {
     console.log('🔧 "함께 보면 좋은 분석 글" 자동 제거');
   }
 
+  // 미래 날짜 허위사실 자동 제거
+  const todayObj = new Date();
+  const todayMonth = todayObj.getMonth() + 1;
+  const todayDay = todayObj.getDate();
+  const todayYear = todayObj.getFullYear();
+  // 현재 월 이후의 구체적 날짜 언급 제거 (예: "6월 2일", "8월 12일")
+  const futureDateRegex = new RegExp(
+    `(${todayYear}년\\s*)?([${todayMonth + 1}-9]|1[0-2])월\\s*\\d{1,2}일[에서]?`,
+    "g"
+  );
+  const futureDateMatches = fixedContent.match(futureDateRegex);
+  if (futureDateMatches && futureDateMatches.length > 0) {
+    console.log(`🔧 미래 날짜 ${futureDateMatches.length}개 감지 — 포함 문장 제거`);
+    for (const match of futureDateMatches) {
+      // 해당 날짜가 포함된 문장 전체를 제거
+      const sentenceRegex = new RegExp(`[^.。]*${match.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}[^.。]*[.。]\\s*`, "g");
+      fixedContent = fixedContent.replace(sentenceRegex, "");
+    }
+  }
+
   // FAQ 섹션 누락 시 자동 추가 (H2 레벨로 존재해야 함)
   if (!/^##\s.*자주 묻는 질문/m.test(fixedContent)) {
     // 기존에 H3 등으로 잘못 들어간 FAQ 제거
