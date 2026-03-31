@@ -34,6 +34,13 @@ export const metadata: Metadata = {
     template: `%s | ${SITE_NAME} - 주식 시장 분석`,
   },
   description: SITE_DESCRIPTION,
+  icons: {
+    icon: [
+      { url: "/icon.svg", type: "image/svg+xml" },
+      { url: "/favicon.ico", sizes: "32x32" },
+    ],
+    apple: "/apple-icon.svg",
+  },
   keywords: [
     "한국 주식",
     "주식 분석",

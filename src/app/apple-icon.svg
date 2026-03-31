@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180" width="180" height="180">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1e1b2e"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+    <linearGradient id="flame" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0%" stop-color="#dc2626"/>
+      <stop offset="45%" stop-color="#f97316"/>
+      <stop offset="100%" stop-color="#facc15"/>
+    </linearGradient>
+    <linearGradient id="inner" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0%" stop-color="#f97316"/>
+      <stop offset="100%" stop-color="#fde68a"/>
+    </linearGradient>
+  </defs>
+  <rect width="180" height="180" rx="40" fill="url(#bg)"/>
+  <!-- outer flame -->
+  <path d="M90 25C90 25 62 65 62 100c0 8.5 2.3 16.5 6.5 23C61 115 52 102 52 85c0-17 11-42 22-56C79 34 90 25 90 25z
+           M90 25C90 25 118 65 118 100c0 8.5-2.3 16.5-6.5 23C119 115 128 102 128 85c0-17-11-42-22-56C101 34 90 25 90 25z" fill="url(#flame)" opacity="0.5"/>
+  <path d="M90 30C70 55 50 80 50 105c0 22 18 40 40 40s40-18 40-40C130 80 110 55 90 30z" fill="url(#flame)"/>
+  <!-- inner flame -->
+  <path d="M90 70c-11 17-22 31-22 48c0 12.2 9.8 22 22 22s22-9.8 22-22C112 101 101 87 90 70z" fill="url(#inner)"/>
+  <!-- bright core -->
+  <ellipse cx="90" cy="126" rx="10" ry="14" fill="#fef9c3" opacity="0.85"/>
+</svg>
