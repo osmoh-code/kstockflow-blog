@@ -511,7 +511,7 @@ async function main(): Promise<void> {
   } else {
     combinedContext = [stockContext, newsContext].filter(Boolean).join("\n") || undefined;
   }
-  const { system, user } = buildPrompt(keyword, combinedContext, categoryOverride ?? undefined);
+  const { system, user } = buildPrompt(keyword, combinedContext, categoryOverride ?? undefined, manualStocks.length > 0 ? manualStocks : undefined);
 
   const response = await client.messages.create({
     model: MODEL,
@@ -532,6 +532,12 @@ async function main(): Promise<void> {
   console.log("✅ Claude 응답 수신 완료");
 
   let post = parseResponse(rawText, keyword, categoryOverride ?? undefined);
+
+  // 수동 지정 종목이 있으면 relatedStocks 강제 교체
+  if (manualStocks.length > 0) {
+    post = { ...post, relatedStocks: manualStocks };
+    console.log(`🔒 관련주 강제 적용: ${manualStocks.join(", ")}`);
+  }
 
   // -----------------------------------------------------------------------
   // Step 2.5: 자동 후처리 (볼드→mark, 함께보면좋은분석글 제거, FAQ 보장)

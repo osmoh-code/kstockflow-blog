@@ -446,7 +446,8 @@ related_stocks: 종목1, 종목2, 종목3, ...
 function buildUserPrompt(
   keyword: string,
   category: string,
-  stockContext?: string
+  stockContext?: string,
+  manualStocks?: readonly string[],
 ): string {
   const today = new Date().toISOString().slice(0, 10);
   let prompt = `아래 키워드에 대한 한국 주식 시장 블로그 포스트를 작성해 주세요.
@@ -460,6 +461,18 @@ function buildUserPrompt(
 ⚠️ 절대 금지: 대선, 선거, 취임, 공약 발표 등 실제로 발생하지 않은 정치적 사건을 지어내지 마세요.
 ⚠️ 뉴스 데이터에 있는 사실만 서술하세요. 뉴스에 없는 구체적 날짜·사건·인용문·수치는 허위사실입니다.
 `;
+
+  // 사용자가 종목을 직접 지정한 경우 — 자체 선정 절대 금지
+  if (manualStocks && manualStocks.length > 0) {
+    prompt += `
+⚠️⚠️⚠️ [최우선 규칙] 관련주 종목이 사전 지정되었습니다. 반드시 아래 종목만 사용하세요. ⚠️⚠️⚠️
+지정 종목: ${manualStocks.join(", ")}
+- 위 ${manualStocks.length}개 종목만 분석하세요. 다른 종목을 추가하거나 대체하지 마세요.
+- related_stocks에도 위 종목만 기재하세요.
+- 제목의 TOP N은 ${manualStocks.length}으로 설정하세요.
+- ### N. 종목명 형식으로 위 종목을 순서대로 모두 분석하세요.
+`;
+  }
 
   // 주식 실시간 데이터가 있으면 포함
   if (stockContext) {
@@ -560,6 +573,7 @@ export function buildPrompt(
   keyword: string,
   stockContext?: string,
   categorySlug?: CategorySlugType,
+  manualStocks?: readonly string[],
 ): PromptPair {
   // 주식특징주 카테고리: 전용 프롬프트 사용
   if (categorySlug === "featured-stocks") {
@@ -583,7 +597,7 @@ export function buildPrompt(
     : detectCategory(keyword);
   return {
     system: SYSTEM_PROMPT,
-    user: buildUserPrompt(keyword, category, stockContext),
+    user: buildUserPrompt(keyword, category, stockContext, manualStocks),
   };
 }
 
