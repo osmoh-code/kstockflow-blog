@@ -10,9 +10,12 @@ export default function RecommendedPosts({
   currentSlug,
   currentCategory,
 }: RecommendedPostsProps) {
-  const posts = getPostsByCategory("hot-issues")
-    .filter((p) => p.meta.slug !== currentSlug)
-    .slice(0, 3);
+  const allHotIssues = getPostsByCategory("hot-issues")
+    .filter((p) => p.meta.slug !== currentSlug);
+
+  // 랜덤 3개 선택 (빌드 시 고정, 배포마다 변경)
+  const shuffled = [...allHotIssues].sort(() => Math.random() - 0.5);
+  const posts = shuffled.slice(0, 3);
 
   if (posts.length === 0) return null;
 
