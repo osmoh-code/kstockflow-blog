@@ -6,6 +6,27 @@ interface RecommendedPostsProps {
   readonly currentCategory: string;
 }
 
+/**
+ * 현재 글의 slug를 시드로 사용하여 결정적 랜덤 선택
+ * → 같은 글에서는 항상 같은 추천 (캐시 친화적)
+ * → 다른 글에서는 다른 추천 조합
+ */
+function seededShuffle<T>(arr: readonly T[], seed: string): T[] {
+  const copy = [...arr];
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) {
+    hash = ((hash << 5) - hash + seed.charCodeAt(i)) | 0;
+  }
+
+  for (let i = copy.length - 1; i > 0; i--) {
+    hash = ((hash << 5) - hash + i) | 0;
+    const j = ((hash < 0 ? -hash : hash) % (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+
+  return copy;
+}
+
 export default function RecommendedPosts({
   currentSlug,
   currentCategory,
@@ -13,8 +34,8 @@ export default function RecommendedPosts({
   const allHotIssues = getPostsByCategory("hot-issues")
     .filter((p) => p.meta.slug !== currentSlug);
 
-  // 랜덤 3개 선택 (빌드 시 고정, 배포마다 변경)
-  const shuffled = [...allHotIssues].sort(() => Math.random() - 0.5);
+  // slug 기반 시드로 셔플 → 글마다 다른 추천 조합
+  const shuffled = seededShuffle(allHotIssues, currentSlug);
   const posts = shuffled.slice(0, 3);
 
   if (posts.length === 0) return null;
