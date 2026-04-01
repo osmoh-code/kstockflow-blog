@@ -91,12 +91,23 @@ function fetchKrxStockList(): Promise<ReadonlyMap<string, string>> {
  */
 const STOCK_CODE_ALIASES: Record<string, string> = {
   "NAVER": "035420", "네이버": "035420",
-  "POSCO홀딩스": "005490",
+  "POSCO홀딩스": "005490", "포스코홀딩스": "005490",
   "한국항공우주": "047810", "KAI": "047810",
   "KMW": "285490",
   "S-Oil": "010950",
   "SM상선": "002410",
   "한국석유": "004090",
+  // 흔히 사용되는 별칭
+  "삼성E&A": "028050", "삼성이앤에이": "028050", "삼성엔지니어링": "028050",
+  "DL이앤씨": "375500",
+  "HD건설기계": "267270", "HD현대건설기계": "267270",
+  "GS건설": "006360",
+  "두산밥캣": "241560",
+  "포스코이앤씨": "047050", "포스코E&C": "047050",
+  "HD현대인프라코어": "042670",
+  "LS ELECTRIC": "010120", "LS일렉트릭": "010120",
+  "LIG넥스원": "079550",
+  "SK하이닉스": "000660",
 };
 
 /**
@@ -262,14 +273,22 @@ export async function getMultipleStockInfo(
 ): Promise<readonly StockInfo[]> {
   console.log(`\n📈 관련주 데이터 수집 (${stockNames.length}개 종목)`);
 
+  // 3개씩 병렬 조회 (네이버 rate limit 방지)
+  const BATCH_SIZE = 3;
   const results: StockInfo[] = [];
 
-  for (const name of stockNames) {
-    const info = await getStockInfo(name);
-    if (info) {
-      results.push(info);
+  for (let i = 0; i < stockNames.length; i += BATCH_SIZE) {
+    const batch = stockNames.slice(i, i + BATCH_SIZE);
+    const batchResults = await Promise.all(
+      batch.map((name) => getStockInfo(name))
+    );
+    for (const info of batchResults) {
+      if (info) results.push(info);
     }
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    // 배치 간 200ms 딜레이
+    if (i + BATCH_SIZE < stockNames.length) {
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
   }
 
   console.log(`  ✅ ${results.length}/${stockNames.length}개 종목 데이터 수집 완료`);

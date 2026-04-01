@@ -44,6 +44,8 @@ const KEYWORD_MAP: Record<string, KeywordMapping> = {
   // 방산/군사
   방산: { primary: "military defense weapons system", fallback: "army soldier equipment" },
   전쟁: { primary: "military warfare battlefield", fallback: "defense army combat" },
+  종전: { primary: "peace treaty diplomacy handshake", fallback: "reconstruction building city" },
+  재건: { primary: "reconstruction building infrastructure", fallback: "construction city development" },
   드론: { primary: "military drone UAV flying", fallback: "drone aerial unmanned aircraft" },
   미사일: { primary: "missile defense system launch", fallback: "military rocket weapon" },
   무기: { primary: "military weapons defense", fallback: "army equipment arsenal" },
@@ -301,32 +303,32 @@ async function searchPexels(
 // 3개 API를 순차 시도하는 헬퍼
 // ---------------------------------------------------------------------------
 
-async function searchAllApis(query: string): Promise<ImageResult | null> {
+async function searchAllApis(query: string): Promise<readonly ImageResult[]> {
   const unsplashKey = process.env.UNSPLASH_ACCESS_KEY;
   const pixabayKey = process.env.PIXABAY_API_KEY;
   const pexelsKey = process.env.PEXELS_API_KEY;
 
-  let image: ImageResult | null = null;
+  const results: ImageResult[] = [];
 
   if (unsplashKey) {
     console.log(`    🔍 Unsplash: "${query}"`);
-    image = await searchUnsplash(query, unsplashKey);
-    if (image) { console.log(`    ✅ Unsplash 발견: ${image.photographerName}`); return image; }
+    const image = await searchUnsplash(query, unsplashKey);
+    if (image) { console.log(`    ✅ Unsplash 발견: ${image.photographerName}`); results.push(image); }
   }
 
   if (pixabayKey) {
     console.log(`    🔍 Pixabay: "${query}"`);
-    image = await searchPixabay(query, pixabayKey);
-    if (image) { console.log(`    ✅ Pixabay 발견: ${image.photographerName}`); return image; }
+    const image = await searchPixabay(query, pixabayKey);
+    if (image) { console.log(`    ✅ Pixabay 발견: ${image.photographerName}`); results.push(image); }
   }
 
   if (pexelsKey) {
     console.log(`    🔍 Pexels: "${query}"`);
-    image = await searchPexels(query, pexelsKey);
-    if (image) { console.log(`    ✅ Pexels 발견: ${image.photographerName}`); return image; }
+    const image = await searchPexels(query, pexelsKey);
+    if (image) { console.log(`    ✅ Pexels 발견: ${image.photographerName}`); results.push(image); }
   }
 
-  return null;
+  return results;
 }
 
 // ---------------------------------------------------------------------------
@@ -501,25 +503,35 @@ export async function findAndDownloadThumbnail(
   console.log(`  📌 Primary: "${translated.primary}"`);
   console.log(`  📌 Fallback: "${translated.fallback}"`);
 
+  // 모든 검색 결과를 모아서 순서대로 다운로드 시도
+  const candidates: ImageResult[] = [];
+
   // Round 1: Primary query
   console.log(`  🔎 1차 검색...`);
-  let image = await searchAllApis(translated.primary);
+  const primaryResults = await searchAllApis(translated.primary);
+  candidates.push(...primaryResults);
 
   // Round 2: Fallback query
-  if (!image) {
-    console.log(`  🔎 2차 검색 (fallback)...`);
-    image = await searchAllApis(translated.fallback);
-  }
+  console.log(`  🔎 2차 검색 (fallback)...`);
+  const fallbackResults = await searchAllApis(translated.fallback);
+  candidates.push(...fallbackResults);
 
-  // No image found
-  if (!image) {
+  // No image found at all
+  if (candidates.length === 0) {
     console.log(`  ℹ️ 이미지를 찾지 못했습니다. 기본 썸네일 사용.`);
     return { path: "/images/og-default.png", credit: "" };
   }
 
-  // Download
-  const savedPath = await downloadImage(image.url, slug);
-  const credit = `Photo by [${image.photographerName}](${image.photographerUrl}) on ${image.source}`;
+  // 후보 이미지를 순서대로 다운로드 시도 (실패 시 다음 후보로)
+  for (const image of candidates) {
+    const savedPath = await downloadImage(image.url, slug);
+    if (savedPath !== "/images/og-default.png") {
+      const credit = `Photo by [${image.photographerName}](${image.photographerUrl}) on ${image.source}`;
+      return { path: savedPath, credit };
+    }
+    console.log(`  🔄 다운로드 실패, 다음 후보 시도...`);
+  }
 
-  return { path: savedPath, credit };
+  console.log(`  ℹ️ 모든 후보 다운로드 실패. 기본 썸네일 사용.`);
+  return { path: "/images/og-default.png", credit: "" };
 }
