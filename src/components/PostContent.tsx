@@ -87,10 +87,26 @@ export default async function PostContent({ content, meta }: PostContentProps) {
   const faqHeading = parts[1] ?? "";
   const afterFaqHeading = parts.slice(2).join("");
 
-  // 핫이슈 최신글 3개 (본문 내 "함께 보면 좋은 분석 글")
-  const recommendedPosts = getPostsByCategory("hot-issues")
-    .filter((p) => p.meta.slug !== meta.slug)
-    .slice(0, 3);
+  // 핫이슈 중 slug 기반 랜덤 3개 (글마다 다른 추천)
+  const hotIssues = getPostsByCategory("hot-issues")
+    .filter((p) => p.meta.slug !== meta.slug);
+  let rSeed = 0;
+  for (let i = 0; i < meta.slug.length; i++) {
+    rSeed = Math.imul(rSeed ^ meta.slug.charCodeAt(i), 2654435761);
+  }
+  rSeed = rSeed >>> 0;
+  const rCopy = [...hotIssues];
+  // Mulberry32 PRNG + Fisher-Yates shuffle
+  let rState = rSeed;
+  for (let i = rCopy.length - 1; i > 0; i--) {
+    rState = (rState + 0x6d2b79f5) | 0;
+    let t = Math.imul(rState ^ (rState >>> 15), 1 | rState);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    const r = ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    const j = Math.floor(r * (i + 1));
+    [rCopy[i], rCopy[j]] = [rCopy[j], rCopy[i]];
+  }
+  const recommendedPosts = rCopy.slice(0, 3);
 
   return (
     <div>
