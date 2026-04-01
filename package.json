@@ -8,7 +8,7 @@
     "build": "next build && next-sitemap",
     "start": "next start",
     "lint": "next lint",
-    "postbuild": "next-sitemap",
+    "postbuild": "next-sitemap && tsx scripts/submit-urls.ts",
     "generate": "tsx scripts/generate-post.ts",
     "crawl": "tsx scripts/crawl-keywords.ts",
     "thumbnail": "tsx scripts/generate-thumbnail.ts",
