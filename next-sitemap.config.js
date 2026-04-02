@@ -1,3 +1,6 @@
+const fs = require("fs");
+const path = require("path");
+
 /** @type {import('next-sitemap').IConfig} */
 const config = {
   siteUrl: "https://kstockflow.com",
@@ -5,7 +8,7 @@ const config = {
   sitemapSize: 7000,
   changefreq: "daily",
   priority: 0.7,
-  exclude: ["/api/*", "/admin/*", "/feed.xml"],
+  exclude: ["/api/*", "/admin/*", "/feed.xml", "/icon.svg"],
   
   // 구글 봇이 헤매지 않도록 단일 사이트맵으로 묶어주는 필수 옵션
   generateIndexSitemap: false, 
@@ -22,21 +25,33 @@ const config = {
     ],
     // 문제를 일으켰던 additionalSitemaps는 삭제했습니다.
   },
-  transform: async (config, path) => {
-    // Blog post pages get higher priority and daily updates
-    if (path.startsWith("/posts/")) {
+  transform: async (config, urlPath) => {
+    // MDX 파일의 실제 수정일을 lastmod로 사용 (Google이 동일 lastmod를 무시하므로)
+    function getPostLastmod(urlPath) {
+      const slug = urlPath.replace(/^\/posts\//, "").replace(/\/$/, "");
+      const mdxPath = path.join(process.cwd(), "content", "posts", `${slug}.mdx`);
+      try {
+        const stat = fs.statSync(mdxPath);
+        return stat.mtime.toISOString();
+      } catch {
+        return new Date().toISOString();
+      }
+    }
+
+    // Blog post pages get higher priority
+    if (urlPath.startsWith("/posts/")) {
       return {
-        loc: path,
+        loc: urlPath,
         changefreq: "weekly",
         priority: 0.8,
-        lastmod: new Date().toISOString(),
+        lastmod: getPostLastmod(urlPath),
       };
     }
 
     // Home page gets highest priority
-    if (path === "/") {
+    if (urlPath === "/") {
       return {
-        loc: path,
+        loc: urlPath,
         changefreq: "daily",
         priority: 1.0,
         lastmod: new Date().toISOString(),
@@ -44,20 +59,20 @@ const config = {
     }
 
     // Category pages
-    if (path.startsWith("/category/")) {
+    if (urlPath.startsWith("/category/")) {
       return {
-        loc: path,
+        loc: urlPath,
         changefreq: "daily",
-        priority: 0.7,
+        priority: 0.6,
         lastmod: new Date().toISOString(),
       };
     }
 
-    // Default for other pages
+    // 유틸리티 페이지 (contact, privacy, disclaimer, about) — 낮은 우선순위
     return {
-      loc: path,
-      changefreq: config.changefreq,
-      priority: config.priority,
+      loc: urlPath,
+      changefreq: "monthly",
+      priority: 0.3,
       lastmod: new Date().toISOString(),
     };
   },
