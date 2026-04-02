@@ -680,24 +680,36 @@ export function parseResponse(
       const today = new Date();
       const m = today.getMonth() + 1;
       const d = today.getDate();
-      // 등락률이 가장 높은 종목 3~4개 추출 (related_stocks 앞 4개)
-      const topStocks = relatedStocks.slice(0, 4);
-      // content에서 섹터 H3 헤딩 추출 (### 🔋 섹터명 형태)
+      // content에서 섹터 H3 헤딩 + "주요 종목:" 매칭하여 테마별 종목 추출
       const sectorMatches = content.match(/###\s*[\p{Emoji}]\s*([^\n]+)/gu) ?? [];
       const sectors = sectorMatches
-        .map((s) => s.replace(/^###\s*[\p{Emoji}]\s*/u, "").replace(/\s*관련.*$/, "").trim())
-        .filter((s) => s.length > 0 && s.length <= 8)
+        .map((s) => s.replace(/^###\s*[\p{Emoji}]\s*/u, "").replace(/\s*[-—–].*/,"").replace(/\s*관련.*$/, "").trim())
+        .filter((s) => s.length > 0 && s.length <= 12)
         .slice(0, 2);
+
+      // 각 섹터 H3 뒤에 나오는 "주요 종목:" 라인에서 종목 2개씩 추출
+      const stockLines = content.match(/주요 종목[:：]\s*([^\n]+)/g) ?? [];
+      const perSectorStocks: string[] = [];
+      for (let i = 0; i < Math.min(2, stockLines.length); i++) {
+        const names = stockLines[i]
+          .replace(/^주요 종목[:：]\s*/, "")
+          .split(/[,，、]/)
+          .map((s) => s.replace(/\([^)]*\)/g, "").trim())
+          .filter((s) => s.length > 0 && s.length <= 12);
+        perSectorStocks.push(...names.slice(0, 2));
+      }
+      const topStocks = perSectorStocks.length >= 4
+        ? perSectorStocks.slice(0, 4)
+        : relatedStocks.slice(0, 4);
+
       const sectorPart = sectors.length >= 2
         ? `${sectors[0]}·${sectors[1]} 강세`
         : sectors.length === 1
           ? `${sectors[0]} 강세`
           : "테마주 강세";
-      const stockPart = topStocks.length >= 3
+      const stockPart = topStocks.length >= 1
         ? topStocks.join("·") + " 급등"
-        : topStocks.length >= 1
-          ? topStocks.join("·") + " 급등"
-          : "급등주 속출";
+        : "급등주 속출";
       title = `${m}월 ${d}일 주식특징주 | ${sectorPart}, ${stockPart}`;
     }
   } else if (categorySlug === "new-stocks") {
