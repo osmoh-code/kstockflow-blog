@@ -81,7 +81,9 @@ async function submitIndexNow(urls: string[]): Promise<void> {
   });
 
   const endpoints = [
-    { name: "IndexNow (Bing/Naver/Yandex)", url: "https://api.indexnow.org/indexnow" },
+    { name: "IndexNow (Bing)", url: "https://www.bing.com/indexnow" },
+    { name: "IndexNow (Naver)", url: "https://searchadvisor.naver.com/indexnow" },
+    { name: "IndexNow (Yandex)", url: "https://yandex.com/indexnow" },
   ];
 
   for (const endpoint of endpoints) {
