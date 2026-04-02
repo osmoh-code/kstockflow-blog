@@ -116,7 +116,8 @@ export default async function PostPage({ params }: PageProps) {
   ];
 
   const breadcrumbStructuredData = generateBreadcrumbStructuredData(breadcrumbs);
-  const articleStructuredData = generateArticleStructuredData(meta);
+  const wordCount = content.replace(/<[^>]+>/g, "").replace(/\s+/g, "").length;
+  const articleStructuredData = generateArticleStructuredData(meta, wordCount);
   const faqs = extractFAQFromContent(content);
   const faqStructuredData = faqs.length > 0 ? generateFAQStructuredData(faqs) : null;
 
@@ -238,6 +239,36 @@ export default async function PostPage({ params }: PageProps) {
               <Linkedin className="h-4 w-4" />
             </a>
           </div>
+        </div>
+
+        {/* Author & E-E-A-T */}
+        <div className="mt-8 rounded-2xl border border-gray-100 bg-gray-50 p-5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-100">
+                <User className="h-5 w-5 text-brand-accent" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-gray-900">{AUTHOR_NAME}</p>
+                <p className="text-xs text-gray-500">데이터 기반 한국 주식 시장 분석</p>
+              </div>
+            </div>
+            <Link
+              href="/about/"
+              className="text-sm font-medium text-red-600 transition-colors hover:text-red-700"
+            >
+              편집팀 소개 보기 →
+            </Link>
+          </div>
+          <p className="mt-3 text-xs text-gray-400">
+            <Link href={`/category/${meta.category}/`} className="hover:text-gray-600">
+              {categoryName} 전체 보기
+            </Link>
+            {" · "}
+            <Link href="/" className="hover:text-gray-600">
+              K-주식 핫이슈 홈
+            </Link>
+          </p>
         </div>
 
         {/* Related Posts */}

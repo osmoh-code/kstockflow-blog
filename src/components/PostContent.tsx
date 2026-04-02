@@ -59,6 +59,24 @@ function insertAdsAfterHeadings(htmlContent: string): string {
   });
 }
 
+function optimizeExternalImages(htmlContent: string): string {
+  return htmlContent.replace(
+    /<img([^>]*?)src="(https?:\/\/[^"]+)"([^>]*?)>/g,
+    (_match, before, src, after) => {
+      const hasWidth = /width=/i.test(before + after);
+      const hasHeight = /height=/i.test(before + after);
+      const hasLoading = /loading=/i.test(before + after);
+      const hasDecoding = /decoding=/i.test(before + after);
+      let attrs = "";
+      if (!hasWidth) attrs += ' width="600"';
+      if (!hasHeight) attrs += ' height="400"';
+      if (!hasLoading) attrs += ' loading="lazy"';
+      if (!hasDecoding) attrs += ' decoding="async"';
+      return `<img${before}src="${src}"${after}${attrs}>`;
+    }
+  );
+}
+
 export default async function PostContent({ content, meta }: PostContentProps) {
   const processed = await remark()
     .use(remarkGfm, { singleTilde: false })
@@ -71,6 +89,7 @@ export default async function PostContent({ content, meta }: PostContentProps) {
   htmlContent = addIdsToHeadings(htmlContent);
   const headings = extractHeadings(htmlContent);
   htmlContent = insertAdsAfterHeadings(htmlContent);
+  htmlContent = optimizeExternalImages(htmlContent);
 
   // "함께 보면 좋은 분석 글" 텍스트 섹션 제거 (컴포넌트로 대체)
   htmlContent = htmlContent.replace(

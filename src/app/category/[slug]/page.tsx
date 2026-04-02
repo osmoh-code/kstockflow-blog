@@ -9,6 +9,7 @@ import {
 import { CATEGORIES, SITE_NAME, SITE_URL } from "@/lib/constants";
 import { getPostsByCategory } from "@/lib/posts";
 import { generateBreadcrumbStructuredData } from "@/lib/seo";
+import Link from "next/link";
 import BlogCard from "@/components/BlogCard";
 import Sidebar from "@/components/Sidebar";
 import AdPlacement from "@/components/AdPlacement";
@@ -26,9 +27,9 @@ const CATEGORY_ICONS: Record<string, React.ElementType> = {
 
 const CATEGORY_DESCRIPTIONS: Record<string, string> = {
   "featured-stocks":
-    "오늘의 주식 특징주를 분석합니다. 급등주, 테마주, 거래량 상위 종목의 원인과 전망을 살펴보세요.",
+    "매일 장 마감 후 업데이트되는 주식특징주 분석입니다. 당일 급등주, 테마주, 거래량 상위 종목의 상승·하락 원인과 섹터별 흐름을 정리합니다.",
   "hot-issues":
-    "시장을 움직이는 핫이슈를 빠르게 전달합니다. 정책 변화, 글로벌 이슈, 산업 트렌드를 분석합니다.",
+    "시장을 움직이는 핫이슈를 빠르게 전달합니다. 정책 변화, 글로벌 이슈, 산업 트렌드와 관련주를 분석합니다.",
   "new-stocks":
     "신규 상장 종목과 IPO를 분석합니다. 공모가 대비 전망, 사업 모델, 성장 가능성을 살펴보세요.",
   "theme-news":
@@ -54,6 +55,11 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   return {
     title: `${category.name} - 최신 분석`,
     description,
+    keywords: slug === "featured-stocks"
+      ? ["주식특징주", "오늘의 특징주", "급등주", "테마주", "거래량 상위"]
+      : slug === "hot-issues"
+      ? ["주식 관련주", "테마주", "수혜주", "대장주"]
+      : ["신규상장", "IPO", "공모주", "상장분석"],
     openGraph: {
       title: `${category.name} | ${SITE_NAME}`,
       description,
@@ -146,6 +152,32 @@ export default async function CategoryPage({ params }: PageProps) {
           <Sidebar />
         </div>
       </div>
+
+      {/* Cross-category links for internal linking */}
+      <nav className="mt-12 border-t border-gray-100 pt-8" aria-label="다른 카테고리">
+        <h2 className="mb-4 text-lg font-bold text-gray-900">다른 카테고리 보기</h2>
+        <div className="flex flex-wrap gap-3">
+          {CATEGORIES.filter((c) => c.slug !== slug).map((c) => {
+            const CIcon = CATEGORY_ICONS[c.slug] ?? BarChart3;
+            return (
+              <Link
+                key={c.slug}
+                href={`/category/${c.slug}/`}
+                className="inline-flex items-center gap-2 rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:border-gray-300 hover:bg-gray-50"
+              >
+                <CIcon className="h-4 w-4" style={{ color: c.color }} />
+                {c.name}
+              </Link>
+            );
+          })}
+          <Link
+            href="/"
+            className="inline-flex items-center gap-2 rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:border-gray-300 hover:bg-gray-50"
+          >
+            홈으로 돌아가기
+          </Link>
+        </div>
+      </nav>
     </div>
   );
 }

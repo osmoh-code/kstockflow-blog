@@ -20,6 +20,7 @@ interface PlacementConfig {
   readonly format: "auto" | "rectangle" | "horizontal" | "vertical" | "article";
   readonly label: string;
   readonly wrapperClass: string;
+  readonly minHeight: string;
 }
 
 const PLACEMENT_CONFIGS: Record<PlacementType, PlacementConfig> = {
@@ -28,36 +29,42 @@ const PLACEMENT_CONFIGS: Record<PlacementType, PlacementConfig> = {
     format: "horizontal",
     label: "광고",
     wrapperClass: "w-full max-w-4xl mx-auto py-3",
+    minHeight: "min-h-[90px]",
   },
   "sidebar-top": {
     slot: "SIDEBAR_TOP_SLOT",
     format: "rectangle",
     label: "광고",
     wrapperClass: "w-full",
+    minHeight: "min-h-[250px]",
   },
   "sidebar-sticky": {
     slot: "SIDEBAR_STICKY_SLOT",
     format: "vertical",
     label: "광고",
     wrapperClass: "sticky top-4",
+    minHeight: "min-h-[600px]",
   },
   "in-article": {
     slot: "IN_ARTICLE_SLOT",
     format: "article",
     label: "광고",
     wrapperClass: "my-8 w-full",
+    minHeight: "min-h-[250px]",
   },
   "post-bottom": {
     slot: "POST_BOTTOM_SLOT",
     format: "horizontal",
     label: "광고",
     wrapperClass: "w-full mt-8 pt-6 border-t border-gray-200",
+    minHeight: "min-h-[90px]",
   },
   "between-cards": {
     slot: "BETWEEN_CARDS_SLOT",
     format: "auto",
     label: "광고",
     wrapperClass: "w-full py-4",
+    minHeight: "min-h-[100px]",
   },
 };
 
@@ -66,7 +73,7 @@ export default function AdPlacement({ type, className = "" }: AdPlacementProps) 
 
   return (
     <aside
-      className={`${config.wrapperClass} ${className}`}
+      className={`${config.wrapperClass} ${config.minHeight} ${className}`}
       aria-label="광고 영역"
     >
       <p className="text-xs text-gray-400 mb-1 text-center">{config.label}</p>

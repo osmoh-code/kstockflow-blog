@@ -12,7 +12,10 @@ import {
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import CookieConsent from "@/components/CookieConsent";
-import { generateOrganizationStructuredData } from "@/lib/seo";
+import {
+  generateOrganizationStructuredData,
+  generateWebSiteStructuredData,
+} from "@/lib/seo";
 import "./globals.css";
 
 const inter = Inter({
@@ -30,8 +33,8 @@ const plusJakarta = Plus_Jakarta_Sans({
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: `${SITE_NAME} - 주식 시장 분석`,
-    template: `%s | ${SITE_NAME} - 주식 시장 분석`,
+    default: `${SITE_NAME} - 한국 주식 시장 분석`,
+    template: `%s | ${SITE_NAME} - 한국 주식 시장 분석`,
   },
   description: SITE_DESCRIPTION,
   icons: {
@@ -134,6 +137,10 @@ export default function RootLayout({
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: generateOrganizationStructuredData() }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: generateWebSiteStructuredData() }}
         />
         <a href="#main-content" className="skip-to-content">
           본문으로 건너뛰기

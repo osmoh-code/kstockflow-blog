@@ -11,7 +11,10 @@ export interface FAQItem {
   readonly answer: string;
 }
 
-export function generateArticleStructuredData(post: PostMeta): string {
+export function generateArticleStructuredData(
+  post: PostMeta,
+  contentLength?: number
+): string {
   const structuredData = {
     "@context": "https://schema.org",
     "@type": "BlogPosting",
@@ -25,7 +28,7 @@ export function generateArticleStructuredData(post: PostMeta): string {
     author: {
       "@type": "Person",
       name: AUTHOR_NAME,
-      url: SITE_URL,
+      url: `${SITE_URL}/about/`,
     },
     publisher: {
       "@type": "Organization",
@@ -42,7 +45,7 @@ export function generateArticleStructuredData(post: PostMeta): string {
     keywords: post.tags.join(", "),
     articleSection: post.category,
     inLanguage: "ko",
-    wordCount: 5000,
+    wordCount: contentLength ?? 5000,
   };
 
   return JSON.stringify(structuredData);
