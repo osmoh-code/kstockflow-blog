@@ -57,6 +57,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     openGraph: {
       title: meta.title,
       description: meta.description,
+      url: `${SITE_URL}/posts/${slug}/`,
       type: "article",
       publishedTime: meta.date,
       authors: [AUTHOR_NAME],

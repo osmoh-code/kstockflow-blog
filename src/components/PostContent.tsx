@@ -3,9 +3,6 @@ import remarkGfm from "remark-gfm";
 import remarkRehype from "remark-rehype";
 import rehypeRaw from "rehype-raw";
 import rehypeStringify from "rehype-stringify";
-import {
-  generateArticleStructuredData,
-} from "@/lib/seo";
 import { getPostsByCategory, type PostMeta } from "@/lib/posts";
 import AdPlacement from "./AdPlacement";
 import BlogCard from "./BlogCard";
@@ -97,8 +94,6 @@ export default async function PostContent({ content, meta }: PostContentProps) {
     ""
   );
 
-  const structuredData = generateArticleStructuredData(meta);
-
   // 본문을 "자주 묻는 질문" H2 기준으로 분할 → 그 사이에 추천글 카드 삽입
   const faqSplitRegex = /(<h2[^>]*id="[^"]*"[^>]*>.*?자주 묻는 질문.*?<\/h2>)/;
   const parts = htmlContent.split(faqSplitRegex);
@@ -129,12 +124,6 @@ export default async function PostContent({ content, meta }: PostContentProps) {
 
   return (
     <div>
-      {/* Structured Data */}
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: structuredData }}
-      />
-
       {/* Table of Contents */}
       {headings.length > 2 && (
         <nav

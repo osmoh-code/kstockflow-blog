@@ -5,7 +5,7 @@ export const SITE_DESCRIPTION =
 export const AUTHOR_NAME = "K-주식 핫이슈 편집팀";
 export const DEFAULT_OG_IMAGE = "/images/og-default.png";
 
-export const ADSENSE_CLIENT_ID = "ca-pub-XXXXXXXXXX";
+export const ADSENSE_CLIENT_ID = process.env.NEXT_PUBLIC_ADSENSE_CLIENT_ID ?? "";
 export const GA_TRACKING_ID = "G-39M45Y7476";
 
 export interface Category {

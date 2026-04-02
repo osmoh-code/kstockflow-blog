@@ -59,10 +59,9 @@ export default function AdSense({
     }
   }, []);
 
-  const clientId =
-    process.env.NEXT_PUBLIC_ADSENSE_CLIENT_ID ?? "ca-pub-XXXXXXXXXX";
+  const clientId = process.env.NEXT_PUBLIC_ADSENSE_CLIENT_ID ?? "";
 
-  if (process.env.NODE_ENV !== "production") {
+  if (process.env.NODE_ENV !== "production" || !clientId) {
     return (
       <div
         className={`bg-gray-100 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center text-gray-400 text-sm ${FORMAT_STYLES[format]} ${className}`}
