@@ -226,7 +226,7 @@ async function fetchStockDetail(code: string): Promise<Partial<StockInfo> | null
  * 네이버 금융 차트 이미지 URL 생성
  */
 function getChartImageUrl(code: string): string {
-  return `https://ssl.pstatic.net/imgfinance/chart/item/area/month3/${code}.png`;
+  return `https://ssl.pstatic.net/imgfinance/chart/item/candle/day/${code}.png`;
 }
 
 /**
@@ -344,7 +344,7 @@ export function stockPerItemBlocks(stocks: readonly StockInfo[]): ReadonlyMap<st
     let md = `\n| 현재가 | 등락률 | PER | PBR |\n`;
     md += `|--------|--------|-----|-----|\n`;
     md += `| ${stock.price}원 | ${arrow} ${sign}${stock.changePercent} | ${stock.per}배 | ${stock.pbr}배 |\n\n`;
-    md += `![${stock.name} 3개월 차트](${stock.chartImageUrl})\n`;
+    md += `<figure class="stock-chart"><img src="${stock.chartImageUrl}" alt="${stock.name} 일봉 차트" width="700" height="289" loading="lazy" /><figcaption>${stock.name} 일봉 차트 (네이버 금융)</figcaption></figure>\n`;
 
     blocks.set(stock.name, md);
   }

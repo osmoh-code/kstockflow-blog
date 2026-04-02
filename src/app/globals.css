@@ -137,6 +137,20 @@ html {
   @apply rounded-xl;
 }
 
+/* 종목 차트 이미지 스타일 */
+.prose .stock-chart {
+  @apply my-6 mx-auto overflow-hidden rounded-2xl border border-gray-200 bg-gray-50;
+  max-width: 100%;
+}
+
+.prose .stock-chart img {
+  @apply block w-full h-auto m-0;
+}
+
+.prose .stock-chart figcaption {
+  @apply text-center text-xs text-gray-400 py-2 m-0;
+}
+
 .prose table {
   @apply text-sm;
 }
