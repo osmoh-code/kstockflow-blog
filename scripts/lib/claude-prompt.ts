@@ -386,17 +386,17 @@ ${stockData}
 ## 필수 출력 형식
 
 ---FRONTMATTER---
-title: ${month}월 ${day}일 주식특징주 | {주도테마1}·{주도테마2} 강세, {대장주1}·{대장주2} 급등
+title: ${month}월 ${day}일 주식특징주 | {주도테마1}·{주도테마2} 강세, {대장주1}·{대장주2}·{대장주3}·{대장주4} 급등
 description: (80-120자, 오늘의 주요 특징주와 테마를 요약)
 category: 주식특징주
-tags: 주식특징주, ${month}월${day}일 특징주, {주도테마1} 관련주, {대장주1}, 오늘의 특징주
+tags: 주식특징주, ${month}월${day}일 특징주, {주도테마1} 관련주, {대장주1}, {대장주2}, {대장주3}, {대장주4}, 오늘의 특징주
 related_stocks: 종목1, 종목2, 종목3, ...
 
 ⚠️ title 작성 규칙:
 - {주도테마1}, {주도테마2}는 제공된 데이터에서 당일 가장 강했던 섹터/테마 2개를 짧게 (예: 광통신, 건설주, 방산, 2차전지, AI)
-- {대장주1}, {대장주2}는 등락률 상위 대장주 2개 종목명
-- 예시: "${month}월 ${day}일 주식특징주 | 광통신·건설주 강세, 이루온·대우건설 급등"
-- 예시: "${month}월 ${day}일 주식특징주 | 방산·2차전지 강세, 한화시스템·에코프로비엠 급등"
+- {대장주1}~{대장주4}는 등락률 상위 대장주 3~4개 종목명
+- 예시: "${month}월 ${day}일 주식특징주 | 광통신·건설주 강세, 이루온·이노인스트루먼트·대우건설·기가레인 급등"
+- 예시: "${month}월 ${day}일 주식특징주 | 방산·2차전지 강세, 한화시스템·에코프로비엠·풍산·LIG넥스원 급등"
 ---CONTENT---
 
 ## 출력 본문 구조 (반드시 이 순서로)
@@ -680,8 +680,8 @@ export function parseResponse(
       const today = new Date();
       const m = today.getMonth() + 1;
       const d = today.getDate();
-      // 등락률이 가장 높은 종목 2개 추출 (related_stocks 앞 2개)
-      const topStocks = relatedStocks.slice(0, 2);
+      // 등락률이 가장 높은 종목 3~4개 추출 (related_stocks 앞 4개)
+      const topStocks = relatedStocks.slice(0, 4);
       // content에서 섹터 H3 헤딩 추출 (### 🔋 섹터명 형태)
       const sectorMatches = content.match(/###\s*[\p{Emoji}]\s*([^\n]+)/gu) ?? [];
       const sectors = sectorMatches
@@ -693,10 +693,10 @@ export function parseResponse(
         : sectors.length === 1
           ? `${sectors[0]} 강세`
           : "테마주 강세";
-      const stockPart = topStocks.length >= 2
-        ? `${topStocks[0]}·${topStocks[1]} 급등`
-        : topStocks.length === 1
-          ? `${topStocks[0]} 급등`
+      const stockPart = topStocks.length >= 3
+        ? topStocks.join("·") + " 급등"
+        : topStocks.length >= 1
+          ? topStocks.join("·") + " 급등"
           : "급등주 속출";
       title = `${m}월 ${d}일 주식특징주 | ${sectorPart}, ${stockPart}`;
     }
