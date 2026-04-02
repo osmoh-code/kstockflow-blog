@@ -386,11 +386,17 @@ ${stockData}
 ## 필수 출력 형식
 
 ---FRONTMATTER---
-title: ${month}월 ${day}일자 주식특징주
+title: ${month}월 ${day}일 주식특징주 | {주도테마1}·{주도테마2} 강세, {대장주1}·{대장주2} 급등
 description: (80-120자, 오늘의 주요 특징주와 테마를 요약)
 category: 주식특징주
-tags: 주식특징주, ${month}월${day}일 특징주, 오늘의 특징주, 급등주, 테마주
+tags: 주식특징주, ${month}월${day}일 특징주, {주도테마1} 관련주, {대장주1}, 오늘의 특징주
 related_stocks: 종목1, 종목2, 종목3, ...
+
+⚠️ title 작성 규칙:
+- {주도테마1}, {주도테마2}는 제공된 데이터에서 당일 가장 강했던 섹터/테마 2개를 짧게 (예: 광통신, 건설주, 방산, 2차전지, AI)
+- {대장주1}, {대장주2}는 등락률 상위 대장주 2개 종목명
+- 예시: "${month}월 ${day}일 주식특징주 | 광통신·건설주 강세, 이루온·대우건설 급등"
+- 예시: "${month}월 ${day}일 주식특징주 | 방산·2차전지 강세, 한화시스템·에코프로비엠 급등"
 ---CONTENT---
 
 ## 출력 본문 구조 (반드시 이 순서로)
@@ -663,7 +669,38 @@ export function parseResponse(
 
   // 제목: 카테고리별 제목 형식
   let title: string;
-  if (categorySlug === "featured-stocks" || categorySlug === "new-stocks") {
+  if (categorySlug === "featured-stocks") {
+    const rawTitle = getValue("title") || keyword;
+    // Claude가 형식을 무시할 경우 강제 보정
+    // 기대 형식: "X월 X일 주식특징주 | 테마1·테마2 강세, 종목1·종목2 급등"
+    if (rawTitle.includes("|")) {
+      title = rawTitle;
+    } else {
+      // content에서 주도 테마와 대장주를 자동 추출
+      const today = new Date();
+      const m = today.getMonth() + 1;
+      const d = today.getDate();
+      // 등락률이 가장 높은 종목 2개 추출 (related_stocks 앞 2개)
+      const topStocks = relatedStocks.slice(0, 2);
+      // content에서 섹터 H3 헤딩 추출 (### 🔋 섹터명 형태)
+      const sectorMatches = content.match(/###\s*[\p{Emoji}]\s*([^\n]+)/gu) ?? [];
+      const sectors = sectorMatches
+        .map((s) => s.replace(/^###\s*[\p{Emoji}]\s*/u, "").replace(/\s*관련.*$/, "").trim())
+        .filter((s) => s.length > 0 && s.length <= 8)
+        .slice(0, 2);
+      const sectorPart = sectors.length >= 2
+        ? `${sectors[0]}·${sectors[1]} 강세`
+        : sectors.length === 1
+          ? `${sectors[0]} 강세`
+          : "테마주 강세";
+      const stockPart = topStocks.length >= 2
+        ? `${topStocks[0]}·${topStocks[1]} 급등`
+        : topStocks.length === 1
+          ? `${topStocks[0]} 급등`
+          : "급등주 속출";
+      title = `${m}월 ${d}일 주식특징주 | ${sectorPart}, ${stockPart}`;
+    }
+  } else if (categorySlug === "new-stocks") {
     title = getValue("title") || keyword;
   } else {
     const stockCount = relatedStocks.length || 5;
