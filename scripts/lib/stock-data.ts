@@ -20,6 +20,7 @@ export interface StockInfo {
   readonly pbr: string;
   readonly high52w: string;
   readonly low52w: string;
+  readonly tradeAmount: string;
   readonly chartImageUrl: string;
   readonly naverUrl: string;
 }
@@ -155,13 +156,14 @@ async function searchStockCode(stockName: string): Promise<string | null> {
  */
 async function fetchStockDetail(code: string): Promise<Partial<StockInfo> | null> {
   try {
-    // 시세 페이지 — 현재가, 전일대비, 등락률
+    // 시세 페이지 — 현재가, 전일대비, 등락률, 거래대금
     const siseUrl = `https://finance.naver.com/item/sise.naver?code=${code}`;
     const siseRes = await fetch(siseUrl, {
       headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" },
     });
     if (!siseRes.ok) return null;
-    const siseHtml = await siseRes.text();
+    const siseBuf = await siseRes.arrayBuffer();
+    const siseHtml = new TextDecoder("euc-kr").decode(siseBuf);
 
     // blind 태그에서 숫자 데이터 추출 (한글 라벨은 EUC-KR 깨짐 → 순서 기반)
     const blindValues: string[] = [];
@@ -183,6 +185,21 @@ async function fetchStockDetail(code: string): Promise<Partial<StockInfo> | null
     const prevPrice = parseInt((numericBlinds[3] ?? "0").replace(/,/g, ""), 10);
     const changeDirection: "up" | "down" | "flat" =
       curPrice > prevPrice ? "up" : curPrice < prevPrice ? "down" : "flat";
+
+    // 거래대금 추출 (EUC-KR 디코딩된 HTML에서 "거래대금 N백만" 패턴)
+    let tradeAmount = "-";
+    const tradeIdx = siseHtml.indexOf("거래대금");
+    if (tradeIdx !== -1) {
+      const tradeSnippet = siseHtml.substring(tradeIdx, tradeIdx + 100);
+      const tradeMatch = tradeSnippet.match(/거래대금\s+([0-9,]+)백만/);
+      if (tradeMatch) {
+        const million = parseInt(tradeMatch[1].replace(/,/g, ""), 10);
+        const eok = Math.round(million / 100);
+        tradeAmount = eok >= 1000
+          ? `${eok.toLocaleString()}억원`
+          : `${eok}억원`;
+      }
+    }
 
     // main.naver에서 PER, PBR 가져오기
     const mainUrl = `https://finance.naver.com/item/main.naver?code=${code}`;
@@ -215,6 +232,7 @@ async function fetchStockDetail(code: string): Promise<Partial<StockInfo> | null
       pbr,
       high52w,
       low52w,
+      tradeAmount,
     };
   } catch (error) {
     console.warn(`  ⚠️ 종목 상세 크롤링 실패 (${code}):`, error);
@@ -260,6 +278,7 @@ export async function getStockInfo(stockName: string): Promise<StockInfo | null>
     pbr: detail.pbr ?? "-",
     high52w: detail.high52w ?? "-",
     low52w: detail.low52w ?? "-",
+    tradeAmount: detail.tradeAmount ?? "-",
     chartImageUrl: getChartImageUrl(code),
     naverUrl: `https://finance.naver.com/item/main.naver?code=${code}`,
   };
@@ -364,6 +383,7 @@ export function stockInfoToContext(stocks: readonly StockInfo[]): string {
     context += `- ${stock.name}(${stock.code}): `;
     context += `현재가 ${stock.price}원, `;
     context += `등락 ${stock.changeDirection === "up" ? "+" : "-"}${stock.changePercent}, `;
+    context += `거래대금 ${stock.tradeAmount}, `;
     context += `PER ${stock.per}, PBR ${stock.pbr}\n`;
   }
 
