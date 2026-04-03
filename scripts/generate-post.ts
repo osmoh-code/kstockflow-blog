@@ -275,6 +275,26 @@ function buildMdx(
 
   let body = post.content;
 
+  // 특징주 테이블의 거래대금을 실제 네이버 금융 데이터로 교체
+  if (stockInfoList.length > 0 && body.includes("오늘의 특징주 한눈에 보기")) {
+    const stockTradeMap = new Map<string, string>();
+    for (const s of stockInfoList) {
+      if (s.tradeAmount && s.tradeAmount !== "-") {
+        stockTradeMap.set(s.name, s.tradeAmount);
+      }
+    }
+    // 테이블 각 행에서 종목명 매칭 → 거래대금 열 교체
+    const tableRowRegex = /^\| ([^\|]+?) \| ([^\|]+?) \| ([^\|]+?) \| ([^\|]+?) \| ([^\|]+?) \|$/gm;
+    body = body.replace(tableRowRegex, (match, name, sector, reason, change, _tradeAmt) => {
+      const trimName = name.trim();
+      const realAmount = stockTradeMap.get(trimName);
+      if (realAmount) {
+        return `| ${name} | ${sector} | ${reason} | ${change} | ${realAmount} |`;
+      }
+      return match;
+    });
+  }
+
   if (stockInfoList.length > 0) {
     // 1. "## 관련주 분석" 섹션의 Claude 테이블 뒤에 시세 요약 테이블 삽입
     const summaryMd = stockSummaryTable(stockInfoList);
