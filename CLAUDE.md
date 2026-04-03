@@ -314,7 +314,7 @@ git add -A && git commit -m "feat: 글 제목" && git push   # Vercel 자동 배
 | `scripts/lib/claude-prompt.ts`         | Claude API 시스템/유저 프롬프트    |
 | `scripts/lib/image-search.ts`          | 썸네일 생성 (Sharp) + 이미지 검색  |
 | `scripts/lib/news-search.ts`           | Google 뉴스 RSS 검색               |
-| `scripts/lib/stock-data.ts`            | 관련주 시세 크롤링                 |
+| `scripts/lib/stock-data.ts`            | 관련주 시세+거래대금 크롤링 (KRX+NXT 합산) |
 | `scripts/data/`                        | 38커뮤니케이션 등 수동 데이터 파일 |
 | `content/posts/`                       | MDX 블로그 글                      |
 | `public/images/thumbnails/`            | 생성된 썸네일 이미지               |
