@@ -551,34 +551,26 @@ async function main(): Promise<void> {
           const batch = entries.slice(i, i + BATCH);
           await Promise.all(batch.map(async ([code, name]) => {
             try {
-              const url = `https://finance.naver.com/item/sise.naver?code=${code}`;
-              const res = await fetch(url, {
+              // 1) integration API로 거래대금(KRX+NXT 합산) + 등락률
+              const integUrl = `https://m.stock.naver.com/api/stock/${code}/integration`;
+              const integRes = await fetch(integUrl, {
                 headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" },
               });
-              const buf = await res.arrayBuffer();
-              const html = new TextDecoder("euc-kr").decode(buf);
-              // 등락률 추출 (blind 태그 순서: [0]=현재가, [1]=전일대비, [2]=등락률)
-              const blindValues: string[] = [];
-              const blindRe = /<span class="blind">([^<]+)<\/span>/g;
-              let bm: RegExpExecArray | null;
-              while ((bm = blindRe.exec(html)) !== null) blindValues.push(bm[1]);
-              const numBlinds = blindValues.filter((v) => /[\d,.]/.test(v) && !/[a-zA-Z]{3,}/.test(v));
-              const curPrice = parseInt((numBlinds[0] ?? "0").replace(/,/g, ""), 10);
-              const prevPrice = parseInt((numBlinds[3] ?? "0").replace(/,/g, ""), 10);
-              const isUp = curPrice > prevPrice;
-              const pctRaw = numBlinds[2] ?? "0";
-              const changePercent = isUp ? `+${pctRaw}` : `-${pctRaw}`;
-              // 거래대금 추출
-              const idx = html.indexOf("거래대금");
-              if (idx !== -1) {
-                const snippet = html.substring(idx, idx + 100);
-                const tm = snippet.match(/거래대금\s+([0-9,]+)백만/);
-                if (tm) {
-                  const million = parseInt(tm[1].replace(/,/g, ""), 10);
-                  const eok = Math.round(million / 100);
-                  const display = eok >= 1000 ? `${eok.toLocaleString()}억원` : `${eok}억원`;
-                  tradeEntries.push({ name, code, amount: eok, display, changePercent, isUp });
-                }
+              if (!integRes.ok) return;
+              const integStr = await integRes.text();
+              // 등락률
+              const changeMatch = integStr.match(/"fluctuationsRatio":"([^"]+)"/);
+              const comparePriceMatch = integStr.match(/"compareToPreviousPrice":\{[^}]*"code":"(\d)"/);
+              const isUp = comparePriceMatch ? comparePriceMatch[1] === "2" : false; // 2=상승
+              const pctRaw = changeMatch?.[1] ?? "0";
+              const changePercent = isUp ? `+${pctRaw}%` : `-${pctRaw}%`;
+              // 거래대금
+              const tradeMatch = integStr.match(/accumulatedTradingValue[^}]*?value":"([0-9,]+)백만"/);
+              if (tradeMatch) {
+                const million = parseInt(tradeMatch[1].replace(/,/g, ""), 10);
+                const eok = Math.round(million / 100);
+                const display = eok >= 1000 ? `${eok.toLocaleString()}억원` : `${eok}억원`;
+                tradeEntries.push({ name, code, amount: eok, display, changePercent, isUp });
               }
             } catch { /* skip */ }
           }));

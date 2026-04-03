@@ -186,18 +186,37 @@ async function fetchStockDetail(code: string): Promise<Partial<StockInfo> | null
     const changeDirection: "up" | "down" | "flat" =
       curPrice > prevPrice ? "up" : curPrice < prevPrice ? "down" : "flat";
 
-    // 거래대금 추출 (EUC-KR 디코딩된 HTML에서 "거래대금 N백만" 패턴)
+    // 거래대금 추출 — 네이버 모바일 integration API (KRX+NXT 합산)
     let tradeAmount = "-";
-    const tradeIdx = siseHtml.indexOf("거래대금");
-    if (tradeIdx !== -1) {
-      const tradeSnippet = siseHtml.substring(tradeIdx, tradeIdx + 100);
-      const tradeMatch = tradeSnippet.match(/거래대금\s+([0-9,]+)백만/);
-      if (tradeMatch) {
-        const million = parseInt(tradeMatch[1].replace(/,/g, ""), 10);
-        const eok = Math.round(million / 100);
-        tradeAmount = eok >= 1000
-          ? `${eok.toLocaleString()}억원`
-          : `${eok}억원`;
+    try {
+      const integUrl = `https://m.stock.naver.com/api/stock/${code}/integration`;
+      const integRes = await fetch(integUrl, {
+        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" },
+      });
+      if (integRes.ok) {
+        const integStr = await integRes.text();
+        const tradeMatch = integStr.match(/accumulatedTradingValue[^}]*?value":"([0-9,]+)백만"/);
+        if (tradeMatch) {
+          const million = parseInt(tradeMatch[1].replace(/,/g, ""), 10);
+          const eok = Math.round(million / 100);
+          tradeAmount = eok >= 1000
+            ? `${eok.toLocaleString()}억원`
+            : `${eok}억원`;
+        }
+      }
+    } catch {
+      // fallback: sise 페이지에서 추출 (KRX만)
+      const tradeIdx = siseHtml.indexOf("거래대금");
+      if (tradeIdx !== -1) {
+        const tradeSnippet = siseHtml.substring(tradeIdx, tradeIdx + 100);
+        const tradeMatch = tradeSnippet.match(/거래대금\s+([0-9,]+)백만/);
+        if (tradeMatch) {
+          const million = parseInt(tradeMatch[1].replace(/,/g, ""), 10);
+          const eok = Math.round(million / 100);
+          tradeAmount = eok >= 1000
+            ? `${eok.toLocaleString()}억원`
+            : `${eok}억원`;
+        }
       }
     }
 
