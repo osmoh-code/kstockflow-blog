@@ -520,11 +520,87 @@ async function main(): Promise<void> {
     ipoData = await fetch38Data(ipoUrl);
   }
 
+  // featured-stocks: HTML에서 종목코드 추출 → 거래대금 사전 조회
+  let featuredTradeContext = "";
+  if (categoryOverride === "featured-stocks") {
+    const featuredDir = path.join(process.cwd(), "특징주");
+    if (fs.existsSync(featuredDir)) {
+      const codeNameMap = new Map<string, string>();
+      const htmlFiles = fs.readdirSync(featuredDir).filter((f) => f.endsWith(".html"));
+      for (const htmlFile of htmlFiles) {
+        const filePath = path.join(featuredDir, htmlFile);
+        try {
+          const raw = fs.readFileSync(filePath);
+          const html = new TextDecoder("euc-kr").decode(raw);
+          // infostock URL에서 종목코드 + 종목명 추출
+          const codeRegex = /stockitem\?code=(\d{6})"[^>]*><b[^>]*>([^<]+)/g;
+          let m: RegExpExecArray | null;
+          while ((m = codeRegex.exec(html)) !== null) {
+            const code = m[1];
+            const name = m[2].replace(/<[^>]+>/g, "").trim();
+            if (name && code) codeNameMap.set(code, name);
+          }
+        } catch { /* skip */ }
+      }
+      if (codeNameMap.size > 0) {
+        console.log(`\n💰 특징주 HTML에서 ${codeNameMap.size}개 종목코드 추출 → 거래대금 사전 조회`);
+        const tradeEntries: { name: string; code: string; amount: number; display: string; changePercent: string; isUp: boolean }[] = [];
+        const BATCH = 3;
+        const entries = [...codeNameMap.entries()];
+        for (let i = 0; i < entries.length; i += BATCH) {
+          const batch = entries.slice(i, i + BATCH);
+          await Promise.all(batch.map(async ([code, name]) => {
+            try {
+              const url = `https://finance.naver.com/item/sise.naver?code=${code}`;
+              const res = await fetch(url, {
+                headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" },
+              });
+              const buf = await res.arrayBuffer();
+              const html = new TextDecoder("euc-kr").decode(buf);
+              // 등락률 추출 (blind 태그 순서: [0]=현재가, [1]=전일대비, [2]=등락률)
+              const blindValues: string[] = [];
+              const blindRe = /<span class="blind">([^<]+)<\/span>/g;
+              let bm: RegExpExecArray | null;
+              while ((bm = blindRe.exec(html)) !== null) blindValues.push(bm[1]);
+              const numBlinds = blindValues.filter((v) => /[\d,.]/.test(v) && !/[a-zA-Z]{3,}/.test(v));
+              const curPrice = parseInt((numBlinds[0] ?? "0").replace(/,/g, ""), 10);
+              const prevPrice = parseInt((numBlinds[3] ?? "0").replace(/,/g, ""), 10);
+              const isUp = curPrice > prevPrice;
+              const pctRaw = numBlinds[2] ?? "0";
+              const changePercent = isUp ? `+${pctRaw}` : `-${pctRaw}`;
+              // 거래대금 추출
+              const idx = html.indexOf("거래대금");
+              if (idx !== -1) {
+                const snippet = html.substring(idx, idx + 100);
+                const tm = snippet.match(/거래대금\s+([0-9,]+)백만/);
+                if (tm) {
+                  const million = parseInt(tm[1].replace(/,/g, ""), 10);
+                  const eok = Math.round(million / 100);
+                  const display = eok >= 1000 ? `${eok.toLocaleString()}억원` : `${eok}억원`;
+                  tradeEntries.push({ name, code, amount: eok, display, changePercent, isUp });
+                }
+              }
+            } catch { /* skip */ }
+          }));
+          if (i + BATCH < entries.length) await new Promise((r) => setTimeout(r, 200));
+        }
+        // 상승 종목만 필터 → 거래대금 순 정렬
+        const upEntries = tradeEntries.filter((e) => e.isUp).sort((a, b) => b.amount - a.amount);
+        featuredTradeContext = "\n\n## 상승 종목 거래대금 데이터 (네이버 금융 실제 데이터)\n";
+        featuredTradeContext += "거래대금이 큰 상승 종목은 시장 주도주이므로 테이블에 반드시 포함하세요. 하락 종목은 테이블에 넣지 마세요.\n\n";
+        for (const e of upEntries) {
+          featuredTradeContext += `- ${e.name}(${e.code}): 등락률 ${e.changePercent}, 거래대금 ${e.display}\n`;
+        }
+        console.log(`  ✅ ${tradeEntries.length}개 중 상승 ${upEntries.length}개 거래대금 조회 완료 (상위: ${upEntries.slice(0, 5).map(e => `${e.name} ${e.display}`).join(", ")})`);
+      }
+    }
+  }
+
   // 컨텍스트 결합
   let combinedContext: string | undefined;
   if (categoryOverride === "featured-stocks") {
-    // featured-stocks: 데이터 파일 + 뉴스 결합 (데이터 우선)
-    combinedContext = [dataFileContent, newsContext].filter(Boolean).join("\n\n") || undefined;
+    // featured-stocks: 데이터 파일 + 뉴스 + 거래대금 결합 (데이터 우선)
+    combinedContext = [dataFileContent, featuredTradeContext, newsContext].filter(Boolean).join("\n\n") || undefined;
   } else if (categoryOverride === "new-stocks") {
     // 38커뮤니케이션 데이터를 최우선으로 포함 (dataFileContent가 핵심)
     combinedContext = [dataFileContent, ipoData, newsContext, stockContext].filter(Boolean).join("\n\n") || undefined;
