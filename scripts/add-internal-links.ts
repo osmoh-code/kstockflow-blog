@@ -118,7 +118,7 @@ const edits: LinkEdit[] = [
   },
   // spacex
   {
-    file: "2026-03-19-x.mdx",
+    file: "2026-03-19-spacex-stocks.mdx",
     after: "투자의 책임은 투자자 본인에게 있습니다.",
     insert: "\n\n위성 통신과 연결된 [6G 상용화 관련주 TOP 7](/posts/2026-03-19-6g/) 분석도 참고하세요. 방산 분야에 관심이 있다면 [전쟁 방산 관련주 TOP 6](/posts/2026-03-19-war-defense-stocks/)에서 확인하실 수 있습니다. 더 많은 테마주 분석은 [핫이슈 전체 보기](/category/hot-issues/)에서 확인하세요.",
   },

@@ -99,6 +99,11 @@
       "source": "/posts/2026-04-03-4-3/",
       "destination": "/posts/2026-04-03-featured-stocks/",
       "permanent": true
+    },
+    {
+      "source": "/posts/2026-03-19-x/",
+      "destination": "/posts/2026-03-19-spacex-stocks/",
+      "permanent": true
     }
   ]
 }
