@@ -126,27 +126,27 @@ const edits: LinkEdit[] = [
   // ========== 신규상장 + 건설 차트 그룹 ==========
   // 아이엠바이오로직스
   {
-    file: "2026-03-20-post-y0dh88.mdx",
+    file: "2026-03-20-imbio-new-listing.mdx",
     after: "투자의 책임은 투자자 본인에게 있습니다.",
-    insert: "\n\n같은 시기 의료기기 IPO인 [메쥬 상장 분석](/posts/2026-03-24-post-4f2tvt/)과 [리센스메디컬 상장 분석](/posts/2026-03-30-post-d7pzp7/)도 비교해보세요. 핀테크 IPO는 [한패스 상장 분석](/posts/2026-03-25-hanpass-new-listing/)에서 확인하세요. 다른 신규 상장주 분석은 [신규 상장주 전체 보기](/category/new-stocks/)에서 확인하세요.",
+    insert: "\n\n같은 시기 의료기기 IPO인 [메쥬 상장 분석](/posts/2026-03-24-meju-new-listing/)과 [리센스메디컬 상장 분석](/posts/2026-03-30-ricens-new-listing/)도 비교해보세요. 핀테크 IPO는 [한패스 상장 분석](/posts/2026-03-25-hanpass-new-listing/)에서 확인하세요. 다른 신규 상장주 분석은 [신규 상장주 전체 보기](/category/new-stocks/)에서 확인하세요.",
   },
   // 메쥬
   {
-    file: "2026-03-24-post-4f2tvt.mdx",
+    file: "2026-03-24-meju-new-listing.mdx",
     after: "투자의 책임은 투자자 본인에게 있습니다.",
-    insert: "\n\n바이오 IPO인 [아이엠바이오로직스 상장 분석](/posts/2026-03-20-post-y0dh88/)과 냉각치료 의료기기 [리센스메디컬 상장 분석](/posts/2026-03-30-post-d7pzp7/)도 함께 비교해보세요. 핀테크 IPO는 [한패스 상장 분석](/posts/2026-03-25-hanpass-new-listing/)에서 확인하세요. 다른 신규 상장주 분석은 [신규 상장주 전체 보기](/category/new-stocks/)에서 확인하세요.",
+    insert: "\n\n바이오 IPO인 [아이엠바이오로직스 상장 분석](/posts/2026-03-20-imbio-new-listing/)과 냉각치료 의료기기 [리센스메디컬 상장 분석](/posts/2026-03-30-ricens-new-listing/)도 함께 비교해보세요. 핀테크 IPO는 [한패스 상장 분석](/posts/2026-03-25-hanpass-new-listing/)에서 확인하세요. 다른 신규 상장주 분석은 [신규 상장주 전체 보기](/category/new-stocks/)에서 확인하세요.",
   },
   // 한패스
   {
     file: "2026-03-25-hanpass-new-listing.mdx",
     after: "투자의 책임은 투자자 본인에게 있습니다.",
-    insert: "\n\n같은 시기 바이오 IPO인 [아이엠바이오로직스 상장 분석](/posts/2026-03-20-post-y0dh88/)과 의료기기 [메쥬 상장 분석](/posts/2026-03-24-post-4f2tvt/), [리센스메디컬 상장 분석](/posts/2026-03-30-post-d7pzp7/)도 비교해보세요. 다른 신규 상장주 분석은 [신규 상장주 전체 보기](/category/new-stocks/)에서 확인하세요.",
+    insert: "\n\n같은 시기 바이오 IPO인 [아이엠바이오로직스 상장 분석](/posts/2026-03-20-imbio-new-listing/)과 의료기기 [메쥬 상장 분석](/posts/2026-03-24-meju-new-listing/), [리센스메디컬 상장 분석](/posts/2026-03-30-ricens-new-listing/)도 비교해보세요. 다른 신규 상장주 분석은 [신규 상장주 전체 보기](/category/new-stocks/)에서 확인하세요.",
   },
   // 리센스메디컬
   {
-    file: "2026-03-30-post-d7pzp7.mdx",
+    file: "2026-03-30-ricens-new-listing.mdx",
     after: "투자의 책임은 투자자 본인에게 있습니다.",
-    insert: "\n\n같은 시기 바이오 IPO인 [아이엠바이오로직스 상장 분석](/posts/2026-03-20-post-y0dh88/)과 의료기기 [메쥬 상장 분석](/posts/2026-03-24-post-4f2tvt/)도 비교해보세요. 핀테크 IPO는 [한패스 상장 분석](/posts/2026-03-25-hanpass-new-listing/)에서 확인하세요. 다른 신규 상장주 분석은 [신규 상장주 전체 보기](/category/new-stocks/)에서 확인하세요.",
+    insert: "\n\n같은 시기 바이오 IPO인 [아이엠바이오로직스 상장 분석](/posts/2026-03-20-imbio-new-listing/)과 의료기기 [메쥬 상장 분석](/posts/2026-03-24-meju-new-listing/)도 비교해보세요. 핀테크 IPO는 [한패스 상장 분석](/posts/2026-03-25-hanpass-new-listing/)에서 확인하세요. 다른 신규 상장주 분석은 [신규 상장주 전체 보기](/category/new-stocks/)에서 확인하세요.",
   },
   // 대우건설
   {

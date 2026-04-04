@@ -125,6 +125,28 @@ const KOREAN_TO_SLUG: Record<string, string> = {
   "교육": "education", "관광": "tourism",
 };
 
+// 한글 → 로마자 변환 (초성+중성+종성 분리)
+function romanizeKorean(text: string): string {
+  const CHO = ["g","kk","n","d","tt","r","m","b","pp","s","ss","","j","jj","ch","k","t","p","h"];
+  const JUNG = ["a","ae","ya","yae","eo","e","yeo","ye","o","wa","wae","oe","yo","u","wo","we","wi","yu","eu","ui","i"];
+  const JONG = ["","k","kk","ks","n","nj","nh","d","l","lg","lm","lb","ls","lt","lp","lh","m","b","bs","s","ss","ng","j","ch","k","t","p","h"];
+
+  let result = "";
+  for (const ch of text) {
+    const code = ch.charCodeAt(0);
+    if (code >= 0xAC00 && code <= 0xD7A3) {
+      const offset = code - 0xAC00;
+      const cho = Math.floor(offset / (21 * 28));
+      const jung = Math.floor((offset % (21 * 28)) / 28);
+      const jong = offset % 28;
+      result += CHO[cho] + JUNG[jung] + JONG[jong];
+    } else {
+      result += ch;
+    }
+  }
+  return result;
+}
+
 function toSlug(text: string): string {
   // 1단계: 한글 키워드를 영문으로 치환 (긴 키워드부터 매칭)
   let converted = text;
@@ -135,9 +157,11 @@ function toSlug(text: string): string {
     }
   }
 
-  // 2단계: 영문/숫자만 남기고 슬러그 생성
+  // 2단계: 매핑 안 된 한글은 로마자 변환 (랜덤 슬러그 방지)
+  converted = converted.replace(/[가-힣]+/g, (match) => ` ${romanizeKorean(match)} `);
+
+  // 3단계: 영문/숫자만 남기고 슬러그 생성
   const slug = converted
-    .replace(/[가-힣]+/g, " ")       // 매핑 안 된 한글 제거
     .replace(/[^\w\s-]/g, "")        // 특수문자 제거
     .replace(/\s+/g, "-")
     .replace(/-+/g, "-")
@@ -149,8 +173,9 @@ function toSlug(text: string): string {
 
   if (deduped) return deduped;
 
-  // 매핑 실패 시 타임스탬프 fallback
+  // 매핑 실패 시 타임스탬프 fallback (도달하면 안 됨)
   const ts = Date.now().toString(36).slice(-6);
+  console.warn(`⚠️  슬러그 생성 실패, 랜덤 fallback 사용: post-${ts}`);
   return `post-${ts}`;
 }
 
@@ -172,6 +197,7 @@ function parseArgs(): {
   category: CategorySlugType | null;
   dataFile: string | null;
   ipoUrl: string | null;
+  slug: string | null;
 } {
   const args = process.argv.slice(2);
   const keyword = args.find((a) => !a.startsWith("--"));
@@ -197,6 +223,9 @@ function parseArgs(): {
   const ipoIdx = args.indexOf("--ipo-url");
   const ipoUrl = ipoIdx !== -1 && args[ipoIdx + 1] ? args[ipoIdx + 1] : null;
 
+  const slugIdx = args.indexOf("--slug");
+  const slug = slugIdx !== -1 && args[slugIdx + 1] ? args[slugIdx + 1] : null;
+
   const preview = args.includes("--preview");
 
   if (!keyword) {
@@ -219,6 +248,9 @@ function parseArgs(): {
     console.error(
       '   옵션: --ipo-url "38.co.kr URL"    (신규상장주 공모 데이터 URL)',
     );
+    console.error(
+      '   옵션: --slug "my-slug"            (슬러그 직접 지정)',
+    );
     process.exit(1);
   }
 
@@ -228,7 +260,7 @@ function parseArgs(): {
     process.exit(1);
   }
 
-  return { keyword, stocks, thumbnail, preview, category, dataFile, ipoUrl };
+  return { keyword, stocks, thumbnail, preview, category, dataFile, ipoUrl, slug };
 }
 
 // ---------------------------------------------------------------------------
@@ -346,7 +378,7 @@ function escapeRegex(str: string): string {
 // ---------------------------------------------------------------------------
 
 async function main(): Promise<void> {
-  const { keyword, stocks: manualStocks, thumbnail: manualThumbnail, preview, category: categoryOverride, dataFile, ipoUrl } = parseArgs();
+  const { keyword, stocks: manualStocks, thumbnail: manualThumbnail, preview, category: categoryOverride, dataFile, ipoUrl, slug: manualSlug } = parseArgs();
 
   console.log(`\n🔍 키워드: "${keyword}"`);
 
@@ -748,7 +780,17 @@ async function main(): Promise<void> {
   // Step 4: 썸네일 이미지 검색 & 다운로드
   // -----------------------------------------------------------------------
   const date = todayDate();
-  const slug = `${date}-${toSlug(keyword)}`;
+  let slugSuffix: string;
+  if (manualSlug) {
+    // --slug 옵션으로 직접 지정
+    slugSuffix = manualSlug;
+  } else if (categoryOverride === "new-stocks") {
+    // 신규상장주: 회사명-new-listing 형태로 자동 생성
+    slugSuffix = `${toSlug(keyword)}-new-listing`;
+  } else {
+    slugSuffix = toSlug(keyword);
+  }
+  const slug = `${date}-${slugSuffix}`;
 
   let thumbnailPath: string;
   let imageCredit: string;
