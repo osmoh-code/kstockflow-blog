@@ -59,6 +59,46 @@
       "source": "/posts/2026-03-30-post-d7pzp7/",
       "destination": "/posts/2026-03-30-ricens-new-listing/",
       "permanent": true
+    },
+    {
+      "source": "/posts/2026-03-25-3-24/",
+      "destination": "/posts/2026-03-24-featured-stocks/",
+      "permanent": true
+    },
+    {
+      "source": "/posts/2026-03-25-3-25/",
+      "destination": "/posts/2026-03-25-featured-stocks/",
+      "permanent": true
+    },
+    {
+      "source": "/posts/2026-03-26-3-26/",
+      "destination": "/posts/2026-03-26-featured-stocks/",
+      "permanent": true
+    },
+    {
+      "source": "/posts/2026-03-30-3-30/",
+      "destination": "/posts/2026-03-30-featured-stocks/",
+      "permanent": true
+    },
+    {
+      "source": "/posts/2026-03-31-3-31/",
+      "destination": "/posts/2026-03-31-featured-stocks/",
+      "permanent": true
+    },
+    {
+      "source": "/posts/2026-04-01-4-1/",
+      "destination": "/posts/2026-04-01-featured-stocks/",
+      "permanent": true
+    },
+    {
+      "source": "/posts/2026-04-02-4-2/",
+      "destination": "/posts/2026-04-02-featured-stocks/",
+      "permanent": true
+    },
+    {
+      "source": "/posts/2026-04-03-4-3/",
+      "destination": "/posts/2026-04-03-featured-stocks/",
+      "permanent": true
     }
   ]
 }

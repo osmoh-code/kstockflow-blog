@@ -784,6 +784,9 @@ async function main(): Promise<void> {
   if (manualSlug) {
     // --slug 옵션으로 직접 지정
     slugSuffix = manualSlug;
+  } else if (categoryOverride === "featured-stocks") {
+    // 주식특징주: 항상 featured-stocks 고정 (날짜만 다름)
+    slugSuffix = "featured-stocks";
   } else if (categoryOverride === "new-stocks") {
     // 신규상장주: 회사명-new-listing 형태로 자동 생성
     slugSuffix = `${toSlug(keyword)}-new-listing`;
