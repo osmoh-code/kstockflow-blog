@@ -204,7 +204,7 @@ export default function DisclaimerPage() {
               <p>
                 본 사이트의 정보에 오류가 있음을 발견하신 경우,{" "}
                 <Link
-                  href="/contact"
+                  href="/contact/"
                   className="text-brand-accent underline"
                 >
                   문의 페이지

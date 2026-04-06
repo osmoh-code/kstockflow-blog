@@ -197,6 +197,7 @@ function checkInternalLinks() {
     fs.statSync(path.join(postsDir, f)).isDirectory()
   );
   const VALID_CATEGORIES = new Set(["featured-stocks", "hot-issues", "new-stocks"]);
+  const STATIC_PAGES = new Set(["about", "contact", "privacy", "disclaimer"]);
 
   let brokenCount = 0;
   let trailingSlashIssues = 0;
@@ -233,6 +234,25 @@ function checkInternalLinks() {
       }
       if (!href.endsWith("/")) {
         error(`${slug}: trailing slash 누락 → ${href} (308 리다이렉트 유발)`);
+        trailingSlashIssues++;
+      }
+    }
+
+    // 6c. 정적 페이지 링크 — trailing slash 검증 (about/contact/privacy/disclaimer)
+    const staticLinks = html.matchAll(/href="(\/(about|contact|privacy|disclaimer)([/#?][^"]*)?)"/g);
+    for (const match of staticLinks) {
+      const href = match[1];
+      const page = match[2];
+      const rest = match[3] ?? "";
+      // OK if: ends with / OR has /#anchor or /?query
+      const beforeFragment = rest.split(/[#?]/)[0];
+      if (beforeFragment !== "/" && beforeFragment !== "") {
+        // shouldn't happen for STATIC_PAGES regex, defensive
+        continue;
+      }
+      const needsSlash = !rest.startsWith("/");
+      if (needsSlash && STATIC_PAGES.has(page)) {
+        error(`${slug}: 정적 페이지 trailing slash 누락 → ${href} (308 리다이렉트 유발)`);
         trailingSlashIssues++;
       }
     }

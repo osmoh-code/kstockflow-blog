@@ -41,7 +41,7 @@ export default function CookieConsent() {
           </div>
           <div className="flex items-center gap-3 flex-shrink-0">
             <Link
-              href="/privacy#cookies"
+              href="/privacy/#cookies"
               className="text-sm text-brand-accent hover:text-brand-accent-hover hover:underline whitespace-nowrap"
             >
               자세히 보기

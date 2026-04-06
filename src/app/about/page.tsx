@@ -329,7 +329,7 @@ export default function AboutPage() {
                 투자에 앞서 반드시 다양한 정보를 참고하시고, 필요한 경우 공인된
                 금융 전문가의 조언을 구하시기 바랍니다. 자세한 면책 사항은{" "}
                 <Link
-                  href="/disclaimer"
+                  href="/disclaimer/"
                   className="text-red-600 underline font-medium"
                 >
                   투자 면책 고지
@@ -345,7 +345,7 @@ export default function AboutPage() {
               K-주식 핫이슈에 대해 궁금한 점이 있으시거나, 제안사항이 있으신가요?
             </p>
             <Link
-              href="/contact"
+              href="/contact/"
               className="inline-block bg-red-600 text-white font-semibold px-8 py-3 rounded-lg hover:bg-red-700 transition-colors"
             >
               문의하기

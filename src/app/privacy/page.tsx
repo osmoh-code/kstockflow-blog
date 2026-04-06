@@ -444,7 +444,7 @@ export default function PrivacyPage() {
           </ul>
           <p className="mt-3">
             위 권리 행사는 본 사이트의{" "}
-            <Link href="/contact" className="text-brand-accent underline">
+            <Link href="/contact/" className="text-brand-accent underline">
               문의 페이지
             </Link>
             를 통해 요청하실 수 있으며, 본 사이트는 이에 대해 지체 없이

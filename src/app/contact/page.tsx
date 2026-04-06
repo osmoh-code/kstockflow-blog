@@ -250,7 +250,7 @@ export default function ContactPage() {
               <ul className="space-y-2 text-sm">
                 <li>
                   <Link
-                    href="/about"
+                    href="/about/"
                     className="text-brand-accent hover:underline"
                   >
                     KStockFlow 소개
@@ -258,7 +258,7 @@ export default function ContactPage() {
                 </li>
                 <li>
                   <Link
-                    href="/privacy"
+                    href="/privacy/"
                     className="text-brand-accent hover:underline"
                   >
                     개인정보처리방침
@@ -266,7 +266,7 @@ export default function ContactPage() {
                 </li>
                 <li>
                   <Link
-                    href="/disclaimer"
+                    href="/disclaimer/"
                     className="text-brand-accent hover:underline"
                   >
                     투자 면책 고지
