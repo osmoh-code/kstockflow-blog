@@ -565,12 +565,14 @@ async function main(): Promise<void> {
           const raw = fs.readFileSync(filePath);
           const html = new TextDecoder("euc-kr").decode(raw);
           // infostock URL에서 종목코드 + 종목명 추출
-          const codeRegex = /stockitem\?code=(\d{6})"[^>]*><b[^>]*>([^<]+)/g;
+          // HTML 4·5 (코스피/코스닥): <b>종목명</b> 형태
+          // HTML 6 (상한가/급등): 태그 없이 종목명 직접 노출 (CS, 풍산홀딩스 등)
+          const codeRegex = /stockitem\?code=([0-9A-Z]{6})"[^>]*>(?:<b[^>]*>)?([^<]+)/g;
           let m: RegExpExecArray | null;
           while ((m = codeRegex.exec(html)) !== null) {
             const code = m[1];
             const name = m[2].replace(/<[^>]+>/g, "").trim();
-            if (name && code) codeNameMap.set(code, name);
+            if (name && code && !/^\d+$/.test(name)) codeNameMap.set(code, name);
           }
         } catch { /* skip */ }
       }
