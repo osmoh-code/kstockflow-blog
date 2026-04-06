@@ -23,6 +23,12 @@ export interface PromptPair {
   readonly user: string;
 }
 
+export interface ExistingPost {
+  readonly slug: string;
+  readonly title: string;
+  readonly tags: readonly string[];
+}
+
 export type CategorySlugType = "featured-stocks" | "hot-issues" | "new-stocks";
 
 // ---------------------------------------------------------------------------
@@ -107,13 +113,15 @@ YMYL(Your Money or Your Life) E-E-A-T 기준을 통과하는 고품질 금융 �
 - 취소선(~~텍스트~~) 사용 금지
 - 전문 용어는 괄호로 쉬운 설명 병기: PER(주가수익비율)
 
-## SEO 내부 링크 규칙 (매우 중요)
-- 본문 중 관련 주제가 나올 때 자연스럽게 내부 링크를 삽입할 것 (글당 3~5개)
-- 링크 형식: [앵커 텍스트](/category/카테고리슬러그/) 또는 [앵커 텍스트](/posts/슬러그/)
+## SEO 내부 링크 규칙 (매우 중요 — 할루시네이션 절대 금지)
+- **오직 유저 프롬프트의 "사용 가능한 내부 링크 목록"에 있는 슬러그만** `/posts/{슬러그}/` 형식으로 링크
+- 그 목록에 없는 슬러그를 만들어내거나 추측하지 마세요. 목록에 없으면 링크하지 마세요.
+- 유효 카테고리 페이지는 정확히 3개뿐: `/category/featured-stocks/`, `/category/hot-issues/`, `/category/new-stocks/`. 이 외 카테고리 경로(`/category/fintech/`, `/category/ai/` 등)는 존재하지 않으므로 **절대 링크 금지**
+- 링크 개수: 제공된 목록에서 키워드와 **실제로 관련 있는 글**만 2~4개 선택. 관련 글이 0~1개뿐이면 그만큼만 사용 (억지로 채우지 말 것)
+- 결론 근처에 항상 카테고리 링크 1개: "더 많은 분석은 [핫이슈 전체 보기](/category/hot-issues/)에서 확인하세요"
 - 앵커 텍스트는 "자세히 읽기", "읽기" 같은 의미 없는 텍스트 금지. 반드시 키워드 포함
-  좋은 예: "[방산 관련주 TOP 6 분석](/posts/2026-03-19-war-defense-stocks/)에서 자세히 다루었습니다"
+  좋은 예: "방산주에 관심이 있다면 [전쟁 방산 관련주 TOP 6 분석](/posts/2026-03-19-war-defense-stocks/)도 함께 참고하세요"
   나쁜 예: "[자세히 보기](/posts/2026-03-19-war-defense-stocks/)"
-- 카테고리 페이지 링크도 포함: "더 많은 분석은 [핫이슈 전체 보기](/category/hot-issues/)에서 확인하세요"
 - "함께 보면 좋은 분석 글" 섹션은 MDX에 작성하지 마세요 (RecommendedPosts 컴포넌트가 자동 렌더링)
 
 ## 관련주 선정 규칙
@@ -470,6 +478,7 @@ function buildUserPrompt(
   category: string,
   stockContext?: string,
   manualStocks?: readonly string[],
+  existingPosts?: readonly ExistingPost[],
 ): string {
   const today = new Date().toISOString().slice(0, 10);
   let prompt = `아래 키워드에 대한 한국 주식 시장 블로그 포스트를 작성해 주세요.
@@ -483,6 +492,34 @@ function buildUserPrompt(
 ⚠️ 절대 금지: 대선, 선거, 취임, 공약 발표 등 실제로 발생하지 않은 정치적 사건을 지어내지 마세요.
 ⚠️ 뉴스 데이터에 있는 사실만 서술하세요. 뉴스에 없는 구체적 날짜·사건·인용문·수치는 허위사실입니다.
 `;
+
+  // 내부 링크용 실제 존재 포스트 목록 — Claude가 이 리스트 외의 슬러그를 만들지 못하도록 차단
+  if (existingPosts && existingPosts.length > 0) {
+    prompt += `
+## 사용 가능한 내부 링크 목록 (반드시 이 목록에서만 선택)
+
+아래는 현재 블로그에 실제로 존재하는 핫이슈 포스트 전체 목록입니다.
+**링크를 걸 수 있는 슬러그는 이 목록에 있는 것뿐입니다. 목록에 없는 슬러그는 절대 사용 금지.**
+현재 키워드("${keyword}")와 **실제로 관련성 있는** 글만 골라서 2~4개 내부 링크로 사용하세요.
+관련성 낮으면 억지로 넣지 말고, 관련 글이 0~1개뿐이면 그만큼만 사용하세요.
+
+`;
+    for (const post of existingPosts) {
+      const tagStr = post.tags.length > 0 ? ` — 태그: ${post.tags.slice(0, 5).join(", ")}` : "";
+      prompt += `- \`/posts/${post.slug}/\` — ${post.title}${tagStr}\n`;
+    }
+    prompt += `
+⚠️ 위 목록에 없는 슬러그(예: \`/posts/2026-04-05-fintech-stocks/\`)를 만들어내면 빌드 실패합니다.
+⚠️ 카테고리 링크는 정확히 3개만 유효: \`/category/featured-stocks/\`, \`/category/hot-issues/\`, \`/category/new-stocks/\`. 그 외 \`/category/fintech/\` 같은 경로는 절대 금지.
+`;
+  } else {
+    prompt += `
+## 내부 링크 제약
+현재 블로그에 관련 포스트 목록이 제공되지 않았습니다.
+- 포스트 링크(\`/posts/*/\`)를 절대 만들어내지 마세요.
+- 카테고리 링크는 \`/category/hot-issues/\` 1개만 결론 부근에 사용하세요.
+`;
+  }
 
   // 사용자가 종목을 직접 지정한 경우 — 자체 선정 절대 금지
   if (manualStocks && manualStocks.length > 0) {
@@ -578,8 +615,8 @@ ${stockContext}
 - 볼드(별표 두개)는 사용 금지. 강조는 <mark>태그</mark>만 사용
 - 각 종목 분석에서 해당 종목의 최근 뉴스는 **제공된 뉴스 데이터에 있는 경우에만** 포함하세요. 뉴스에 없는 수주·계약·실적을 지어내지 마세요.
 - 뉴스 데이터가 부족한 종목은 공개된 사업 내용, 산업 동향, 시세 데이터 기반으로 분석하세요.
-- 본문 중간에 관련 주제의 내부 링크를 3~5개 자연스럽게 삽입 (SEO 핵심!)
-  - 마크다운 링크 형식 사용: [앵커 텍스트](/posts/슬러그/) 또는 [앵커 텍스트](/category/슬러그/)
+- 내부 링크는 **상단 "사용 가능한 내부 링크 목록"에 있는 슬러그만** 사용 (관련 글 2~4개, 관련 글 적으면 그만큼만)
+  - 목록에 없는 슬러그 절대 금지. 할루시네이션 시 빌드 실패
   - 앵커 텍스트에 키워드 포함 ("자세히 보기" 같은 의미 없는 텍스트 금지)
   - 좋은 예: "방산주에 관심이 있다면 [전쟁 방산 관련주 TOP 6 분석](/posts/2026-03-19-war-defense-stocks/)도 함께 참고하세요."
   - 결론에 카테고리 링크 1개: "더 많은 분석은 [핫이슈 전체 보기](/category/hot-issues/)에서 확인하세요."
@@ -599,6 +636,7 @@ export function buildPrompt(
   stockContext?: string,
   categorySlug?: CategorySlugType,
   manualStocks?: readonly string[],
+  existingPosts?: readonly ExistingPost[],
 ): PromptPair {
   // 주식특징주 카테고리: 전용 프롬프트 사용
   if (categorySlug === "featured-stocks") {
@@ -622,7 +660,7 @@ export function buildPrompt(
     : detectCategory(keyword);
   return {
     system: SYSTEM_PROMPT,
-    user: buildUserPrompt(keyword, category, stockContext, manualStocks),
+    user: buildUserPrompt(keyword, category, stockContext, manualStocks, existingPosts),
   };
 }
 

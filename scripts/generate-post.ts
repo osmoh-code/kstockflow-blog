@@ -22,6 +22,7 @@ import {
   getCategorySlug,
   type GeneratedPost,
   type CategorySlugType,
+  type ExistingPost,
 } from "./lib/claude-prompt";
 import { validatePost } from "./lib/post-validator";
 import {
@@ -68,6 +69,50 @@ loadAllEnvFromFile();
 
 function loadEnvValue(key: string): string | undefined {
   return process.env[key];
+}
+
+/**
+ * Load all existing hot-issues posts from content/posts/ so Claude can only
+ * link to real slugs. Prevents hallucinated internal links.
+ */
+function loadExistingHotIssuePosts(): readonly ExistingPost[] {
+  if (!fs.existsSync(POSTS_DIR)) return [];
+  const files = fs.readdirSync(POSTS_DIR).filter((f) => f.endsWith(".mdx"));
+  const posts: ExistingPost[] = [];
+  for (const file of files) {
+    const full = path.join(POSTS_DIR, file);
+    try {
+      const raw = fs.readFileSync(full, "utf-8");
+      // Parse YAML frontmatter between leading --- markers
+      const match = raw.match(/^---\s*\n([\s\S]*?)\n---/);
+      if (!match) continue;
+      const fm = match[1];
+      const get = (key: string): string => {
+        const m = fm.match(new RegExp(`^${key}:\\s*(.+)$`, "m"));
+        return m?.[1]?.trim().replace(/^["'](.*)["']$/, "$1") ?? "";
+      };
+      const category = get("category");
+      if (category !== "hot-issues") continue; // only hot-issues are linkable from hot-issues posts
+      const title = get("title");
+      const slug = file.replace(/\.mdx$/, "");
+      const tagsLine = get("tags");
+      let tags: string[] = [];
+      if (tagsLine) {
+        // Handle both ["a","b"] JSON-array and plain comma-separated forms
+        const arrMatch = tagsLine.match(/^\[(.*)\]$/);
+        const src = arrMatch ? arrMatch[1] : tagsLine;
+        tags = src
+          .split(",")
+          .map((t) => t.trim().replace(/^["'](.*)["']$/, "$1"))
+          .filter(Boolean);
+      }
+      posts.push({ slug, title, tags });
+    } catch {
+      // skip unparseable files
+    }
+  }
+  // Sort newest first (slug starts with YYYY-MM-DD)
+  return posts.sort((a, b) => b.slug.localeCompare(a.slug));
 }
 
 function loadApiKey(): string {
@@ -653,7 +698,20 @@ async function main(): Promise<void> {
   } else {
     combinedContext = [stockContext, newsContext].filter(Boolean).join("\n") || undefined;
   }
-  const { system, user } = buildPrompt(keyword, combinedContext, categoryOverride ?? undefined, manualStocks.length > 0 ? manualStocks : undefined);
+  // hot-issues에서만 기존 포스트 목록을 주입 (featured-stocks/new-stocks는 전용 프롬프트 사용)
+  const existingPosts = categoryOverride === "hot-issues" || !categoryOverride
+    ? loadExistingHotIssuePosts()
+    : undefined;
+  if (existingPosts && existingPosts.length > 0) {
+    console.log(`🔗 내부 링크 풀 로드: ${existingPosts.length}개 핫이슈 포스트`);
+  }
+  const { system, user } = buildPrompt(
+    keyword,
+    combinedContext,
+    categoryOverride ?? undefined,
+    manualStocks.length > 0 ? manualStocks : undefined,
+    existingPosts,
+  );
 
   const response = await client.messages.create({
     model: MODEL,
@@ -679,6 +737,39 @@ async function main(): Promise<void> {
   if (manualStocks.length > 0) {
     post = { ...post, relatedStocks: manualStocks };
     console.log(`🔒 관련주 강제 적용: ${manualStocks.join(", ")}`);
+  }
+
+  // 할루시네이션 내부 링크 방어 — 실제 존재하지 않는 /posts/*/ 및 /category/*/ 링크 자동 제거
+  if (existingPosts !== undefined) {
+    const validSlugs = new Set(existingPosts.map((p) => p.slug));
+    const validCategories = new Set(["featured-stocks", "hot-issues", "new-stocks"]);
+    let cleaned = post.content;
+    let removed = 0;
+
+    // /posts/{slug}/ 검증
+    cleaned = cleaned.replace(
+      /\[([^\]]+)\]\(\/posts\/([^/)]+)\/?\)/g,
+      (full, anchor, slug) => {
+        if (validSlugs.has(slug)) return full;
+        removed++;
+        return anchor; // drop the link, keep the anchor text
+      },
+    );
+
+    // /category/{slug}/ 검증
+    cleaned = cleaned.replace(
+      /\[([^\]]+)\]\(\/category\/([^/)]+)\/?\)/g,
+      (full, anchor, slug) => {
+        if (validCategories.has(slug)) return full;
+        removed++;
+        return anchor;
+      },
+    );
+
+    if (removed > 0) {
+      console.log(`🧹 할루시네이션 내부 링크 ${removed}개 제거`);
+      post = { ...post, content: cleaned };
+    }
   }
 
   // -----------------------------------------------------------------------
