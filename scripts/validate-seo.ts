@@ -196,25 +196,55 @@ function checkInternalLinks() {
   const slugs = fs.readdirSync(postsDir).filter(f =>
     fs.statSync(path.join(postsDir, f)).isDirectory()
   );
+  const VALID_CATEGORIES = new Set(["featured-stocks", "hot-issues", "new-stocks"]);
 
   let brokenCount = 0;
+  let trailingSlashIssues = 0;
+  let invalidCategoryCount = 0;
   for (const slug of slugs) {
     const htmlPath = path.join(postsDir, slug, "index.html");
     if (!fs.existsSync(htmlPath)) continue;
 
     const html = fs.readFileSync(htmlPath, "utf-8");
-    const links = html.matchAll(/href="(\/posts\/[^"]+?)"/g);
-    for (const match of links) {
-      const target = match[1].replace(/\/$/, "");
-      const targetSlug = target.replace("/posts/", "");
+
+    // 6a. /posts/ 링크 — 실재 슬러그 + trailing slash 검증
+    const postLinks = html.matchAll(/href="(\/posts\/[^"#?]+?)"/g);
+    for (const match of postLinks) {
+      const href = match[1];
+      const targetSlug = href.replace(/^\/posts\//, "").replace(/\/$/, "");
       if (!fs.existsSync(path.join(postsDir, targetSlug, "index.html"))) {
-        error(`${slug}: 깨진 내부 링크 → ${match[1]}`);
+        error(`${slug}: 깨진 내부 링크 → ${href}`);
         brokenCount++;
+      }
+      if (!href.endsWith("/")) {
+        error(`${slug}: trailing slash 누락 → ${href} (308 리다이렉트 유발, GSC '리디렉션 포함된 페이지' 경고 원인)`);
+        trailingSlashIssues++;
+      }
+    }
+
+    // 6b. /category/ 링크 — 유효 카테고리 + trailing slash 검증
+    const catLinks = html.matchAll(/href="(\/category\/([^"#?/]+)\/?)"/g);
+    for (const match of catLinks) {
+      const href = match[1];
+      const catSlug = match[2];
+      if (!VALID_CATEGORIES.has(catSlug)) {
+        error(`${slug}: 존재하지 않는 카테고리 → ${href} (유효: featured-stocks, hot-issues, new-stocks)`);
+        invalidCategoryCount++;
+      }
+      if (!href.endsWith("/")) {
+        error(`${slug}: trailing slash 누락 → ${href} (308 리다이렉트 유발)`);
+        trailingSlashIssues++;
       }
     }
   }
 
-  ok(`내부 링크 검증 완료 (깨진 링크: ${brokenCount}개)`);
+  if (trailingSlashIssues > 0) {
+    error(`trailing slash 누락 ${trailingSlashIssues}개 — next.config.ts trailingSlash:true이므로 모든 내부 링크는 / 로 끝나야 함`);
+  }
+  if (invalidCategoryCount > 0) {
+    error(`존재하지 않는 카테고리 링크 ${invalidCategoryCount}개`);
+  }
+  ok(`내부 링크 검증 완료 (깨진 링크: ${brokenCount}개, trailing slash 누락: ${trailingSlashIssues}개, 잘못된 카테고리: ${invalidCategoryCount}개)`);
 }
 
 // 실행

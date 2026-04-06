@@ -784,6 +784,21 @@ async function main(): Promise<void> {
     console.log(`🔧 볼드 ${boldCount}개 → <mark> 자동 변환`);
   }
 
+  // 내부 링크 trailing slash 자동 보정 (next.config.ts trailingSlash:true 기준)
+  // /posts/slug 또는 /category/slug 가 / 없이 끝나면 308 리다이렉트 발생 → GSC 경고
+  let trailingSlashFixed = 0;
+  fixedContent = fixedContent.replace(
+    /(\]\(\/(?:posts|category)\/[^)#?]+?)(\))/g,
+    (_, prefix, suffix) => {
+      if (prefix.endsWith("/")) return prefix + suffix;
+      trailingSlashFixed++;
+      return prefix + "/" + suffix;
+    },
+  );
+  if (trailingSlashFixed > 0) {
+    console.log(`🔧 내부 링크 trailing slash ${trailingSlashFixed}개 자동 보정`);
+  }
+
   // "함께 보면 좋은 분석 글" 텍스트 자동 제거 (컴포넌트로 대체)
   if (fixedContent.includes("함께 보면 좋은 분석 글")) {
     fixedContent = fixedContent.replace(/###\s*함께 보면 좋은 분석 글[\s\S]*?(?=##|$)/, "");

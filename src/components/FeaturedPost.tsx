@@ -68,7 +68,7 @@ export default function FeaturedPost({ post }: FeaturedPostProps) {
 
           <div className="mt-6">
             <Link
-              href={`/posts/${post.slug}`}
+              href={`/posts/${post.slug}/`}
               className="inline-flex items-center gap-1.5 rounded-xl bg-brand-accent px-5 py-2.5 text-sm font-semibold text-white transition-all duration-200 hover:bg-brand-accent-hover hover:gap-2.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-accent"
             >
               자세히 읽기

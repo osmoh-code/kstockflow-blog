@@ -24,7 +24,7 @@ export default function BlogCard({ post, featured = false }: BlogCardProps) {
       className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-lg"
     >
       <Link
-        href={`/posts/${post.slug}`}
+        href={`/posts/${post.slug}/`}
         className="absolute inset-0 z-10"
         aria-label={post.title}
       >

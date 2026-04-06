@@ -158,7 +158,7 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
               {results.map((entry) => (
                 <li key={entry.slug}>
                   <Link
-                    href={`/posts/${entry.slug}`}
+                    href={`/posts/${entry.slug}/`}
                     onClick={handleLinkClick}
                     className="flex gap-4 px-5 py-4 transition-colors hover:bg-gray-50"
                   >

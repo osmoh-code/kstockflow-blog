@@ -88,7 +88,7 @@ export default async function CategoryPage({ params }: PageProps) {
 
   const breadcrumbs = [
     { name: "홈", url: "/" },
-    { name: category.name, url: `/category/${slug}` },
+    { name: category.name, url: `/category/${slug}/` },
   ];
   const breadcrumbStructuredData = generateBreadcrumbStructuredData(breadcrumbs);
 

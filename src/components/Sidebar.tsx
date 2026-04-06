@@ -58,7 +58,7 @@ export default function Sidebar() {
             return (
               <li key={cat.slug}>
                 <Link
-                  href={`/category/${cat.slug}`}
+                  href={`/category/${cat.slug}/`}
                   className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-gray-600 transition-colors duration-150 hover:bg-gray-50 hover:text-gray-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-accent"
                 >
                   <Icon className="h-4 w-4 flex-shrink-0 text-gray-400" />
@@ -83,7 +83,7 @@ export default function Sidebar() {
             {popularPosts.map((post) => (
               <li key={post.meta.slug}>
                 <Link
-                  href={`/posts/${post.meta.slug}`}
+                  href={`/posts/${post.meta.slug}/`}
                   className="group flex gap-3 rounded-lg transition-colors duration-150"
                 >
                   {/* Small thumbnail */}

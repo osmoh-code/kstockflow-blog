@@ -112,8 +112,8 @@ export default async function PostPage({ params }: PageProps) {
 
   const breadcrumbs = [
     { name: "홈", url: "/" },
-    { name: categoryName, url: `/category/${meta.category}` },
-    { name: meta.title, url: `/posts/${slug}` },
+    { name: categoryName, url: `/category/${meta.category}/` },
+    { name: meta.title, url: `/posts/${slug}/` },
   ];
 
   const breadcrumbStructuredData = generateBreadcrumbStructuredData(breadcrumbs);
@@ -122,7 +122,7 @@ export default async function PostPage({ params }: PageProps) {
   const faqs = extractFAQFromContent(content);
   const faqStructuredData = faqs.length > 0 ? generateFAQStructuredData(faqs) : null;
 
-  const shareUrl = `${SITE_URL}/posts/${slug}`;
+  const shareUrl = `${SITE_URL}/posts/${slug}/`;
   const shareText = encodeURIComponent(meta.title);
 
   return (
@@ -156,7 +156,7 @@ export default async function PostPage({ params }: PageProps) {
           </Link>
           <ChevronRight className="h-3.5 w-3.5" />
           <Link
-            href={`/category/${meta.category}`}
+            href={`/category/${meta.category}/`}
             className="transition-colors duration-150 hover:text-gray-700"
           >
             {categoryName}

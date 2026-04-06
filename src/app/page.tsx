@@ -46,7 +46,7 @@ export default function HomePage() {
             <div className="mb-6 flex items-center justify-between">
               <h2 className="text-xl font-bold text-gray-900">최신 분석</h2>
               <Link
-                href="/category/hot-issues"
+                href="/category/hot-issues/"
                 className="inline-flex items-center gap-1 text-sm font-medium text-brand-accent transition-colors duration-150 hover:text-brand-accent-hover"
               >
                 전체 보기

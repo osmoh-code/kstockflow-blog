@@ -38,7 +38,7 @@ export const CATEGORIES: readonly Category[] = [
 
 export const NAV_LINKS = [
   { label: "홈", href: "/" },
-  { label: "주식특징주", href: "/category/featured-stocks" },
-  { label: "핫이슈", href: "/category/hot-issues" },
-  { label: "신규 상장주", href: "/category/new-stocks" },
+  { label: "주식특징주", href: "/category/featured-stocks/" },
+  { label: "핫이슈", href: "/category/hot-issues/" },
+  { label: "신규 상장주", href: "/category/new-stocks/" },
 ] as const;
