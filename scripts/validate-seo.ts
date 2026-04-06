@@ -55,6 +55,17 @@ function checkPostPages() {
       error(`${slug}: 가짜 AdSense ID 발견`);
     }
 
+    // 특징주 거래대금 플레이스홀더 검사 ("-억원", "- 억원" 등)
+    if (slug.includes("featured-stocks")) {
+      const placeholderPatterns = [">-억원<", "> -억원 <", ">- 억원<"];
+      for (const pattern of placeholderPatterns) {
+        if (html.includes(pattern)) {
+          error(`${slug}: 거래대금 플레이스홀더 "${pattern.replace(/[<>]/g, "")}" 발견 — HTML 파싱 또는 API 조회 실패`);
+          break;
+        }
+      }
+    }
+
     // robots noindex 검사 (포스트에는 없어야 함)
     if (html.includes('content="noindex"') && !slug.includes("404")) {
       error(`${slug}: noindex 태그 발견 — 검색 차단됨`);

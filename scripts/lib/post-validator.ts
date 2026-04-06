@@ -77,6 +77,26 @@ function validateFeaturedStocks(post: GeneratedPost): ValidationResult {
     errors.push("특징주 요약 테이블 누락 — '| 종목명 | 주요섹터 | 상승이유 | 등락률 | 거래대금 |' 필수");
   }
 
+  // 2-1) 거래대금 플레이스홀더 감지 ("-억원", "-", 빈칸)
+  // 후처리에서 실제 데이터 교체되지 않은 행이 남아있으면 경고
+  const tableRegex = /^\| ([^\|]+?) \| ([^\|]+?) \| ([^\|]+?) \| ([^\|]+?) \| ([^\|]+?) \|$/gm;
+  const placeholderRows: string[] = [];
+  let tableMatch: RegExpExecArray | null;
+  while ((tableMatch = tableRegex.exec(c)) !== null) {
+    const name = tableMatch[1].trim();
+    const trade = tableMatch[5].trim();
+    // 헤더/구분선 제외 (종목명, ---)
+    if (name === "종목명" || /^-+$/.test(name)) continue;
+    if (trade === "-억원" || trade === "-" || trade === "" || /^-+억?원?$/.test(trade)) {
+      placeholderRows.push(name);
+    }
+  }
+  if (placeholderRows.length > 0) {
+    warnings.push(
+      `거래대금 플레이스홀더 ${placeholderRows.length}개: ${placeholderRows.join(", ")} — HTML 파싱 또는 API 조회 실패`
+    );
+  }
+
   // 3) 섹터별 "주요 종목:" 확인
   // 섹터 H3 = "### 이모지 섹터명" (FAQ Q. 와 하락테마 제외)
   const sectorSection = c.split("## 주요 하락 테마")[0]?.split("## 섹터별 특징주 분석")[1] ?? "";

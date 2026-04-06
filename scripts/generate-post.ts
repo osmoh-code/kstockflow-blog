@@ -301,6 +301,7 @@ function buildMdx(
   thumbnailPath: string,
   imageCredit: string,
   stockInfoList: readonly StockInfo[],
+  featuredTradeMap?: ReadonlyMap<string, string>,
 ): string {
   const tags = post.tags.map((t) => `"${t}"`).join(", ");
   const categorySlug = getCategorySlug(post.category);
@@ -308,23 +309,39 @@ function buildMdx(
   let body = post.content;
 
   // 특징주 테이블의 거래대금을 실제 네이버 금융 데이터로 교체
-  if (stockInfoList.length > 0 && body.includes("오늘의 특징주 한눈에 보기")) {
+  if (body.includes("오늘의 특징주 한눈에 보기")) {
+    // 1순위: stockInfoList (Claude relatedStocks 기반 상세 시세)
+    // 2순위: featuredTradeMap (HTML 사전 추출 전체 종목 — 상한가 종목 등 커버)
     const stockTradeMap = new Map<string, string>();
+    if (featuredTradeMap) {
+      for (const [name, amt] of featuredTradeMap) {
+        stockTradeMap.set(name, amt);
+      }
+    }
     for (const s of stockInfoList) {
       if (s.tradeAmount && s.tradeAmount !== "-") {
-        stockTradeMap.set(s.name, s.tradeAmount);
+        stockTradeMap.set(s.name, s.tradeAmount); // stockInfoList가 더 정확 → 덮어씀
       }
     }
     // 테이블 각 행에서 종목명 매칭 → 거래대금 열 교체
     const tableRowRegex = /^\| ([^\|]+?) \| ([^\|]+?) \| ([^\|]+?) \| ([^\|]+?) \| ([^\|]+?) \|$/gm;
-    body = body.replace(tableRowRegex, (match, name, sector, reason, change, _tradeAmt) => {
+    let missingRows: string[] = [];
+    body = body.replace(tableRowRegex, (match, name, sector, reason, change, tradeAmt) => {
       const trimName = name.trim();
       const realAmount = stockTradeMap.get(trimName);
       if (realAmount) {
         return `| ${name} | ${sector} | ${reason} | ${change} | ${realAmount} |`;
       }
+      // 실제 데이터 없는 경우 — 플레이스홀더("-억원") 감지하여 경고
+      const trimTrade = tradeAmt.trim();
+      if (trimTrade === "-억원" || trimTrade === "-" || trimTrade === "") {
+        missingRows.push(trimName);
+      }
       return match;
     });
+    if (missingRows.length > 0) {
+      console.warn(`⚠️ 거래대금 누락 종목 ${missingRows.length}개: ${missingRows.join(", ")} (HTML 파싱 또는 API 조회 실패)`);
+    }
   }
 
   if (stockInfoList.length > 0) {
@@ -554,6 +571,7 @@ async function main(): Promise<void> {
 
   // featured-stocks: HTML에서 종목코드 추출 → 거래대금 사전 조회
   let featuredTradeContext = "";
+  const featuredTradeMap = new Map<string, string>(); // 종목명 → 거래대금 (후처리 교체용)
   if (categoryOverride === "featured-stocks") {
     const featuredDir = path.join(process.cwd(), "특징주");
     if (fs.existsSync(featuredDir)) {
@@ -616,6 +634,8 @@ async function main(): Promise<void> {
         featuredTradeContext += "거래대금이 큰 상승 종목은 시장 주도주이므로 테이블에 반드시 포함하세요. 하락 종목은 테이블에 넣지 마세요.\n\n";
         for (const e of upEntries) {
           featuredTradeContext += `- ${e.name}(${e.code}): 등락률 ${e.changePercent}, 거래대금 ${e.display}\n`;
+          // 후처리 테이블 교체용 맵에도 저장 (Claude relatedStocks에 없어도 교체되도록)
+          featuredTradeMap.set(e.name, e.display);
         }
         console.log(`  ✅ ${tradeEntries.length}개 중 상승 ${upEntries.length}개 거래대금 조회 완료 (상위: ${upEntries.slice(0, 5).map(e => `${e.name} ${e.display}`).join(", ")})`);
       }
@@ -834,7 +854,7 @@ async function main(): Promise<void> {
   // -----------------------------------------------------------------------
   // Step 5: MDX 파일 저장
   // -----------------------------------------------------------------------
-  const mdx = buildMdx(post, date, slug, thumbnailPath, imageCredit, stockInfoList);
+  const mdx = buildMdx(post, date, slug, thumbnailPath, imageCredit, stockInfoList, featuredTradeMap);
 
   if (!fs.existsSync(POSTS_DIR)) {
     fs.mkdirSync(POSTS_DIR, { recursive: true });
