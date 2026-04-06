@@ -635,17 +635,29 @@ export function parseResponse(
   keyword: string,
   categorySlug?: CategorySlugType,
 ): GeneratedPost {
-  const frontmatterMatch = raw.match(
+  // Primary format: ---FRONTMATTER--- ... ---CONTENT--- (custom delimiters)
+  // Fallback format: --- ... --- (standard MDX frontmatter, Claude often defaults to this)
+  let frontmatterBlock = "";
+  let content = "";
+
+  const customMatch = raw.match(
     /---FRONTMATTER---([\s\S]*?)---CONTENT---/,
   );
-  if (!frontmatterMatch) {
-    throw new Error(
-      "Claude response did not contain expected ---FRONTMATTER--- / ---CONTENT--- delimiters.",
-    );
+  if (customMatch) {
+    frontmatterBlock = customMatch[1].trim();
+    content = raw.split("---CONTENT---")[1]?.trim() ?? "";
+  } else {
+    // Try standard MDX frontmatter: leading ---\n ... \n---\n
+    const stdMatch = raw.match(/^\s*---\s*\n([\s\S]*?)\n---\s*\n([\s\S]*)$/);
+    if (stdMatch) {
+      frontmatterBlock = stdMatch[1].trim();
+      content = stdMatch[2].trim();
+    } else {
+      throw new Error(
+        "Claude response did not contain expected frontmatter delimiters (---FRONTMATTER---/---CONTENT--- or ---).",
+      );
+    }
   }
-
-  const frontmatterBlock = frontmatterMatch[1].trim();
-  const content = raw.split("---CONTENT---")[1]?.trim() ?? "";
 
   // Parse frontmatter key-value pairs
   const getValue = (key: string): string => {
