@@ -14,7 +14,15 @@
     "thumbnail": "tsx scripts/generate-thumbnail.ts",
     "publish": "tsx scripts/publish.ts",
     "auto-daily": "tsx scripts/auto-daily.ts",
-    "full-pipeline": "tsx scripts/full-pipeline.ts"
+    "full-pipeline": "tsx scripts/full-pipeline.ts",
+    "shorts": "tsx scripts/shorts/shorts-pipeline.ts",
+    "shorts:studio": "remotion studio remotion/index.ts",
+    "shorts:render-test": "remotion render remotion/index.ts Test dist/shorts/test.mp4",
+    "shorts:review": "tsx scripts/shorts/review.ts",
+    "shorts:approve": "tsx scripts/shorts/approve.ts",
+    "shorts:voices": "tsx scripts/shorts/tts.ts --sample-only",
+    "shorts:upload": "tsx scripts/shorts/upload.ts",
+    "shorts:auth": "tsx scripts/shorts/get-refresh-token.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
@@ -38,12 +46,18 @@
     "remark-rehype": "^11.1.2"
   },
   "devDependencies": {
+    "@google/generative-ai": "^0.21.0",
+    "@remotion/bundler": "^4.0.446",
+    "@remotion/cli": "^4.0.446",
+    "@remotion/renderer": "^4.0.446",
     "@tailwindcss/typography": "^0.5.15",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "autoprefixer": "^10.4.0",
     "postcss": "^8.4.0",
+    "recharts": "^2.15.4",
+    "remotion": "^4.0.446",
     "tailwindcss": "^3.4.0",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0"

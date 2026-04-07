@@ -52,3 +52,10 @@ coverage/
 DART_API_KEY=ab5e072ec681f5b34302d29af5368e0bdc030c9e
 .dart-corpcode*
 .indexnow-cache.json
+
+# OAuth client secrets (Cloud Console JSON) — never commit
+.youtube-oauth-client.json
+*-oauth-client.json
+
+# Local backup files (e.g. *.ts.bak.YYYYMMDD)
+*.bak.*

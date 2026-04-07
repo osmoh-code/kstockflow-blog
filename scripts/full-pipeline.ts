@@ -427,6 +427,28 @@ async function main(): Promise<void> {
     console.log("  ⚠️  성공한 포스트가 없어 퍼블리싱 건너뜀");
   }
 
+  // --- Step 3.5: YouTube Shorts 자동 생성 (post-publish hook) ---
+  // Failures here NEVER block indexing or break the pipeline.
+  if (publishSuccess) {
+    console.log("\n🎬 Step 3.5/4: YouTube Shorts 자동 생성");
+    for (const slug of successSlugs) {
+      // MVP: featured-stocks 카테고리만 지원
+      if (!slug.endsWith("-featured-stocks")) {
+        console.log(`  ⏭️  ${slug} — featured-stocks 아님, 건너뜀`);
+        continue;
+      }
+      try {
+        const { runShortsPipeline } = await import("./shorts/shorts-pipeline");
+        await runShortsPipeline(slug, { force: false });
+        console.log(`  ✅ Shorts 렌더 완료: ${slug}`);
+        console.log(`  🔔 검수: npm run shorts:review`);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error(`  ⚠️  Shorts 생성 실패 (블로그 인덱싱에 영향 없음): ${msg}`);
+      }
+    }
+  }
+
   // --- Step 4: Google indexing ---
   console.log("\n🔗 Step 4/4: Google 인덱싱 요청");
   const indexingResults = publishSuccess

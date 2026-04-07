@@ -117,7 +117,7 @@ const STOCK_CODE_ALIASES: Record<string, string> = {
  * 2순위: KRX KIND API 전체 목록 (2700+ 종목)
  * 3순위: KRX 목록에서 부분 매칭
  */
-async function searchStockCode(stockName: string): Promise<string | null> {
+export async function searchStockCode(stockName: string): Promise<string | null> {
   // 1. 별칭 매핑 — 정확히 일치
   if (STOCK_CODE_ALIASES[stockName]) {
     return STOCK_CODE_ALIASES[stockName];
