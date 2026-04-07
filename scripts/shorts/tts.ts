@@ -18,6 +18,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { CLOUD_VOICES, pcmBuffersToWav, synthesizeCloud, synthesizePcm } from "./lib/cloud-tts";
+import { synthesizePcmGemini } from "./lib/gemini-tts";
 import {
   audioMp3Path,
   ensureDir,
@@ -37,7 +38,23 @@ const ALL_VOICES = [
   CLOUD_VOICES.chirp3Iapetus,
 ];
 
+// TTS provider: "cloud" (default, Google Cloud TTS Chirp3-HD) or "gemini" (gemini-2.5-flash-preview-tts)
+// Cloud  = high RPM, supports speakingRate, slightly less natural
+// Gemini = RPM 3 limit (~22s spacing), no speakingRate, more natural prosody
+type TTSProvider = "cloud" | "gemini";
+function getTTSProvider(): TTSProvider {
+  const v = (process.env.SHORTS_TTS_PROVIDER ?? "cloud").toLowerCase();
+  return v === "gemini" ? "gemini" : "cloud";
+}
+
+// Gemini RPM 3 → 22 second spacing between sequential calls
+const GEMINI_CALL_SPACING_MS = 22_000;
+
 function getDefaultVoice(): string {
+  const provider = getTTSProvider();
+  if (provider === "gemini") {
+    return process.env.SHORTS_GEMINI_VOICE ?? "Charon";
+  }
   const env = process.env.SHORTS_DEFAULT_VOICE;
   if (env && env.length > 0) return env;
   return CLOUD_VOICES.chirp3Algenib;
@@ -104,7 +121,13 @@ export async function synthesizeForSlug(
   const sceneTexts = collectSceneTexts(script);
 
   ensureDir(pendingDir(slug));
-  console.log(`   🎤 Cloud TTS 합성 (${voice}, ${sceneTexts.length}개 scene 개별 호출)...`);
+  const provider = getTTSProvider();
+  const providerLabel = provider === "gemini" ? "Gemini TTS" : "Cloud TTS";
+  console.log(`   🎤 ${providerLabel} 합성 (${voice}, ${sceneTexts.length}개 scene 개별 호출)...`);
+  if (provider === "gemini") {
+    const totalWaitSec = ((sceneTexts.length - 1) * GEMINI_CALL_SPACING_MS) / 1000;
+    console.log(`      ⚠️ Gemini RPM 3 → scene 사이 22초 대기 (총 대기 ${totalWaitSec}초)`);
+  }
 
   // Per-scene synthesis for accurate timing
   // Body scenes get SSML break after first word (종목명) for natural pacing
@@ -117,7 +140,20 @@ export async function synthesizeForSlug(
     const text = sceneTexts[i];
     const isBody = i >= bodyStartIdx && i < bodyEndIdx;
     const input = isBody ? wrapWithBreakAfterFirstWord(text, 300) : text;
-    const result = await synthesizePcm(input, voice, isBody);
+
+    let result: { pcm: Buffer; sampleRate: number; durationSec: number };
+    if (provider === "gemini") {
+      // Wait between calls to respect RPM 3 (skip wait before first call)
+      if (i > 0) {
+        process.stdout.write(`      ⏳ rate limit ${GEMINI_CALL_SPACING_MS / 1000}s 대기...`);
+        await new Promise((r) => setTimeout(r, GEMINI_CALL_SPACING_MS));
+        process.stdout.write(" done\n");
+      }
+      result = await synthesizePcmGemini(input, voice);
+    } else {
+      result = await synthesizePcm(input, voice, isBody);
+    }
+
     pcmBuffers.push(result.pcm);
     sceneDurations.push(result.durationSec);
     console.log(`      ${(i + 1).toString().padStart(2)}/${sceneTexts.length}: ${result.durationSec.toFixed(2)}s — "${text.slice(0, 40)}..."`);

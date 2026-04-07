@@ -112,6 +112,8 @@ export interface TTSResult {
 export interface ShortsAssets {
   readonly slug: string;
   readonly audioSrc: string;
+  readonly bgmSrc: string | null;     // BGM 파일명 (publicDir 기준 basename), null이면 BGM 없음
+  readonly bgmVolume: number;          // BGM 볼륨 0.0~1.0, 권장 0.08~0.15
   readonly scenes: readonly RenderScene[];
   readonly sfxCues: readonly SFXCue[];
   readonly totalDurationSec: number;

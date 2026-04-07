@@ -24,6 +24,8 @@ import { LoopScene } from "./scenes/LoopScene";
 export const Shorts: React.FC<ShortsAssets> = ({
   scenes,
   audioSrc,
+  bgmSrc,
+  bgmVolume,
   headerTitle,
   footerBrand,
   footerHint,
@@ -40,6 +42,9 @@ export const Shorts: React.FC<ShortsAssets> = ({
 
       {/* Always-visible letterbox header + footer */}
       <Letterbox headerTitle={headerTitle} footerBrand={footerBrand} footerHint={footerHint} />
+
+      {/* Background music — sits under the TTS at low volume */}
+      {bgmSrc && <Audio src={staticFile(bgmSrc)} volume={bgmVolume} />}
 
       {/* Main TTS narration (resolved via render.ts publicDir = pending/{slug}) */}
       {audioSrc && <Audio src={staticFile(audioSrc)} />}

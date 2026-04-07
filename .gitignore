@@ -59,3 +59,9 @@ DART_API_KEY=ab5e072ec681f5b34302d29af5368e0bdc030c9e
 
 # Local backup files (e.g. *.ts.bak.YYYYMMDD)
 *.bak.*
+
+# BGM audio files (user-supplied from YouTube Audio Library — not redistributed)
+public/audio/*.mp3
+public/audio/*.wav
+public/audio/*.m4a
+!public/audio/.gitkeep

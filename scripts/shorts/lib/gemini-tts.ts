@@ -174,6 +174,99 @@ interface GeminiTTSResponse {
   }>;
 }
 
+/**
+ * Per-scene PCM synthesis (no file write, no WAV header).
+ *
+ * Returns raw 16-bit signed PCM so the caller can concatenate multiple
+ * scene buffers into a single WAV with fade-in/out + DC offset removal
+ * (see cloud-tts.ts pcmBuffersToWav). This is the function used by the
+ * Shorts pipeline when SHORTS_TTS_PROVIDER=gemini.
+ *
+ * SSML stripping: Gemini TTS does not parse SSML. <speak>/<break/> tags
+ * are removed; <break/> is replaced with a comma so the prosody engine
+ * still inserts a natural pause.
+ *
+ * Rate limit handling: caller must space calls ~22s apart (RPM 3).
+ * On 429 we wait the suggested retryDelay then retry once.
+ */
+export async function synthesizePcmGemini(
+  text: string,
+  voice: string,
+): Promise<{ pcm: Buffer; sampleRate: number; durationSec: number }> {
+  const apiKey = process.env.GOOGLE_AI_API_KEY;
+  if (!apiKey) {
+    throw new Error("GOOGLE_AI_API_KEY 환경변수 누락 (.env.local 확인)");
+  }
+
+  // Strip SSML — Gemini doesn't parse it. Replace <break/> with comma for natural pause.
+  const cleanText = text
+    .replace(/<\/?speak[^>]*>/g, "")
+    .replace(/<break[^>]*\/>/g, ", ")
+    .replace(/<[^>]+>/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  const url = `${API_BASE}/${MODEL}:generateContent?key=${apiKey}`;
+  const requestBody = {
+    contents: [{ parts: [{ text: cleanText }] }],
+    generationConfig: {
+      responseModalities: ["AUDIO"],
+      speechConfig: {
+        voiceConfig: {
+          prebuiltVoiceConfig: { voiceName: voice },
+        },
+      },
+    },
+  };
+
+  const doFetch = async (): Promise<Response> => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+    try {
+      return await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(requestBody),
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+
+  let response = await doFetch();
+
+  if (!response.ok) {
+    const errText = await response.text();
+    if (response.status === 429) {
+      const retryMatch = /"retryDelay":\s*"(\d+)s"/.exec(errText);
+      const waitMs = retryMatch ? (parseInt(retryMatch[1], 10) + 5) * 1000 : 65_000;
+      console.log(`      ⏳ Gemini TTS RPM 한도 — ${(waitMs / 1000).toFixed(0)}초 대기 후 재시도`);
+      await new Promise((r) => setTimeout(r, waitMs));
+      response = await doFetch();
+      if (!response.ok) {
+        const retryErr = await response.text();
+        throw new Error(`Gemini TTS HTTP ${response.status} (retry 실패): ${retryErr.slice(0, 200)}`);
+      }
+    } else {
+      throw new Error(`Gemini TTS HTTP ${response.status}: ${errText.slice(0, 300)}`);
+    }
+  }
+
+  const json = (await response.json()) as GeminiTTSResponse;
+  const part = json.candidates?.[0]?.content?.parts?.[0];
+  if (!part?.inlineData?.data) {
+    throw new Error("Gemini TTS 응답에 audio 데이터 없음");
+  }
+
+  const pcm = Buffer.from(part.inlineData.data, "base64");
+  const sampleRate = parseSampleRate(part.inlineData.mimeType ?? "");
+  const sampleCount = pcm.length / 2;
+  const durationSec = sampleCount / sampleRate;
+
+  return { pcm, sampleRate, durationSec };
+}
+
 function parseSampleRate(mimeType: string): number {
   const match = /rate=(\d+)/.exec(mimeType);
   return match ? parseInt(match[1], 10) : 24000;

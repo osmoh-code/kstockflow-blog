@@ -12,6 +12,7 @@
  */
 
 import fs from "node:fs";
+import path from "node:path";
 import { fetchDailyHistory, lookupStockCode, searchStockCode, syntheticHistory } from "./lib/stock-history";
 import { assetsJsonPath, ensureDir, pendingDir } from "./lib/shorts-paths";
 import type {
@@ -176,9 +177,30 @@ export async function buildAssets(
   // Use basename only — render.ts sets publicDir to pendingDir(slug)
   const audioFilename = tts.audioPath.split(/[/\\]/).pop() ?? "";
 
+  // BGM: copy from public/audio/{SHORTS_BGM_FILE} into pendingDir so Remotion's
+  // staticFile() can resolve it. SHORTS_BGM_FILE env var = "bgm.mp3" by default,
+  // can be overridden per-render (e.g. for A/B testing different tracks).
+  // Set to "none" or empty to disable BGM entirely.
+  const bgmEnv = (process.env.SHORTS_BGM_FILE ?? "bgm.mp3").trim();
+  let bgmSrc: string | null = null;
+  if (bgmEnv && bgmEnv !== "none") {
+    const bgmSourcePath = path.join(process.cwd(), "public", "audio", bgmEnv);
+    if (fs.existsSync(bgmSourcePath)) {
+      const bgmDestPath = path.join(pendingDir(input.slug), bgmEnv);
+      fs.copyFileSync(bgmSourcePath, bgmDestPath);
+      bgmSrc = bgmEnv;
+    } else {
+      console.log(`   ⚠️  BGM 파일 없음 (skip): ${bgmSourcePath}`);
+    }
+  }
+  const bgmVolumeRaw = Number.parseFloat(process.env.SHORTS_BGM_VOLUME ?? "");
+  const bgmVolume = Number.isFinite(bgmVolumeRaw) ? bgmVolumeRaw : 0.10;
+
   const assets: ShortsAssets = {
     slug: input.slug,
     audioSrc: audioFilename,
+    bgmSrc,
+    bgmVolume,
     scenes,
     sfxCues,
     totalDurationSec,

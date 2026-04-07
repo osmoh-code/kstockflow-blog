@@ -1,0 +1,7 @@
+# BGM directory
+#
+# Place YouTube Audio Library mp3 files here. Default expected name: bgm.mp3
+# Override via env var: SHORTS_BGM_FILE=bgm-1.mp3 npm run shorts -- <slug>
+#
+# Files in this directory are gitignored (not redistributed in repo).
+# Source recommendation: https://studio.youtube.com → 오디오 보관함
