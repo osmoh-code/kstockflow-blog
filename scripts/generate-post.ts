@@ -389,6 +389,13 @@ function buildMdx(
     }
   }
 
+  // Hot-issues: replace 등락률/거래대금 in the 5-column 구분 table with
+  // real stock-data.ts values, then sort rows by 거래대금 desc.
+  // Table format: | 구분 | 종목 | 핵심 포인트 | 등락률 | 거래대금 |
+  if (stockInfoList.length > 0 && categorySlug === "hot-issues") {
+    body = rewriteHotIssuesStockTable(body, stockInfoList);
+  }
+
   if (stockInfoList.length > 0) {
     // 1. "## 관련주 분석" 섹션의 Claude 테이블 뒤에 시세 요약 테이블 삽입
     const summaryMd = stockSummaryTable(stockInfoList);
@@ -433,6 +440,103 @@ ${body}
 
 function escapeRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * Parse trade amount string ("6,901억원", "2조974억", "-") into a sortable number.
+ * Returns 억원 as base unit. Returns -1 for invalid/missing values.
+ */
+function parseTradeAmountEok(raw: string): number {
+  const clean = raw.replace(/[,\s]/g, "").trim();
+  if (!clean || clean === "-" || clean === "-억원") return -1;
+  const joMatch = /^(\d+(?:\.\d+)?)조(\d+(?:\.\d+)?)?억?/.exec(clean);
+  if (joMatch) {
+    const jo = parseFloat(joMatch[1]);
+    const eok = joMatch[2] ? parseFloat(joMatch[2]) : 0;
+    return jo * 10000 + eok;
+  }
+  const eokMatch = /^(\d+(?:\.\d+)?)억/.exec(clean);
+  if (eokMatch) return parseFloat(eokMatch[1]);
+  const numMatch = /^(\d+(?:\.\d+)?)/.exec(clean);
+  if (numMatch) return parseFloat(numMatch[1]);
+  return -1;
+}
+
+/**
+ * Post-process the hot-issues "관련주 분석" table:
+ *   1. Find the 5-column table with header | 구분 | 종목 | 핵심 포인트 | 등락률 | 거래대금 |
+ *   2. Replace 등락률 and 거래대금 cells with real values from stockInfoList
+ *   3. Sort rows by 거래대금 descending (rows with no data fall to bottom)
+ *
+ * Claude sometimes hallucinates % and amounts — this step guarantees accuracy.
+ */
+function rewriteHotIssuesStockTable(
+  body: string,
+  stockInfoList: readonly StockInfo[],
+): string {
+  // Build lookup map: stock name → {changePercent, tradeAmount}
+  const infoMap = new Map<string, { change: string; trade: string }>();
+  for (const s of stockInfoList) {
+    infoMap.set(s.name, {
+      change: s.changePercent || "-",
+      trade: s.tradeAmount || "-",
+    });
+  }
+
+  // Match the full 5-col table block (header + separator + data rows)
+  // Header must contain "구분" + "종목" + "핵심" + "등락률" + "거래대금"
+  const tableRegex =
+    /(\|\s*구분\s*\|\s*종목\s*\|\s*핵심[^|]*\|\s*등락률\s*\|\s*거래대금\s*\|\s*\n\|[-:\s|]+\|\s*\n)((?:\|[^\n]*\|\s*\n)+)/;
+  const match = tableRegex.exec(body);
+  if (!match) {
+    console.warn("⚠️ hot-issues 5-컬럼 관련주 테이블을 찾을 수 없음 — 후처리 스킵");
+    return body;
+  }
+
+  const [fullMatch, header, dataBlock] = match;
+  const dataRows = dataBlock.trim().split("\n");
+
+  interface Row {
+    category: string;
+    name: string;
+    keyPoint: string;
+    change: string;
+    trade: string;
+    tradeNum: number;
+  }
+
+  const parsed: Row[] = [];
+  for (const line of dataRows) {
+    const cells = line.split("|").slice(1, -1).map((c) => c.trim());
+    if (cells.length < 5) continue;
+    const [category, name, keyPoint] = cells;
+    const info = infoMap.get(name);
+    const change = info?.change ?? "-";
+    const trade = info?.trade ?? "-";
+    parsed.push({
+      category,
+      name,
+      keyPoint,
+      change,
+      trade,
+      tradeNum: parseTradeAmountEok(trade),
+    });
+  }
+
+  // Sort by tradeNum descending; invalid (-1) rows go to the bottom
+  parsed.sort((a, b) => {
+    if (a.tradeNum === b.tradeNum) return 0;
+    if (a.tradeNum === -1) return 1;
+    if (b.tradeNum === -1) return -1;
+    return b.tradeNum - a.tradeNum;
+  });
+
+  const newRows = parsed
+    .map((r) => `| ${r.category} | ${r.name} | ${r.keyPoint} | ${r.change} | ${r.trade} |`)
+    .join("\n");
+  const newTable = `${header}${newRows}\n`;
+
+  return body.replace(fullMatch, newTable);
 }
 
 // ---------------------------------------------------------------------------
