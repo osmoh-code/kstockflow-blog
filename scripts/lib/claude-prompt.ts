@@ -772,10 +772,12 @@ export function parseResponse(
   } else if (categorySlug === "new-stocks") {
     title = getValue("title") || keyword;
   } else {
+    // hot-issues (and default category)
     const stockCount = relatedStocks.length || 5;
     // 키워드에 이미 "관련주"가 포함되어 있으면 중복 방지
     const suffix = keyword.includes("관련주") ? `TOP ${stockCount}` : `관련주 TOP ${stockCount}`;
-    title = `${keyword} ${suffix}`;
+    // Always append the canonical subtitle for hot-issues SEO + consistency
+    title = `${keyword} ${suffix} | 대장주·수혜주·테마주 총정리`;
   }
 
   const description =
