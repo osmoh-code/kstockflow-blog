@@ -100,21 +100,26 @@ export async function uploadShort(slug: string, opts: UploadOpts = {}): Promise<
     throw new Error("YouTube API 응답에 video ID 없음");
   }
 
-  // 5. Extract a frame from mp4 and upload as YouTube thumbnail.
-  //    Default: frame 30 (= 1.0 second @ 30fps), which is AFTER the HookScene
-  //    entrance animation (opacity 0→1 over frames 0~8, spring slide done at
-  //    frame ~18). Frame 0 is intentionally NOT used because the Hook
-  //    content is invisible at that point — only the static letterbox
-  //    header would show, producing a near-black thumbnail.
-  //    Override with SHORTS_THUMBNAIL_FRAME env var.
-  try {
-    const frameIdx = parseInt(process.env.SHORTS_THUMBNAIL_FRAME ?? "30", 10);
-    const thumbnailJpg = extractFrameToJpg(videoFile, baseDir, frameIdx);
-    await uploadVideoThumbnail(youtube, videoId, thumbnailJpg);
-    console.log(`   🖼️  썸네일 업로드 완료 (frame ${frameIdx})`);
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.log(`   ⚠️  썸네일 업로드 실패 (영상은 정상 업로드됨): ${msg.slice(0, 150)}`);
+  // 5. Optional: extract a frame and upload as YouTube custom thumbnail.
+  //    DISABLED BY DEFAULT (2026-04-08) because new channels can't propagate
+  //    custom thumbnails to mobile YouTube/Studio surfaces — the result is
+  //    a blank gray box on mobile while YouTube's auto-pick would at least
+  //    show some frame. Re-enable later when the channel has more activity.
+  //
+  //    To enable: set SHORTS_THUMBNAIL_FRAME=30 (or any frame index) in env.
+  //    When unset (default), YouTube auto-picks a frame for the thumbnail.
+  if (process.env.SHORTS_THUMBNAIL_FRAME) {
+    try {
+      const frameIdx = parseInt(process.env.SHORTS_THUMBNAIL_FRAME, 10);
+      const thumbnailJpg = extractFrameToJpg(videoFile, baseDir, frameIdx);
+      await uploadVideoThumbnail(youtube, videoId, thumbnailJpg);
+      console.log(`   🖼️  썸네일 업로드 완료 (frame ${frameIdx})`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.log(`   ⚠️  썸네일 업로드 실패 (영상은 정상 업로드됨): ${msg.slice(0, 150)}`);
+    }
+  } else {
+    console.log(`   ⏭️  썸네일 업로드 건너뜀 (YouTube 자동 픽 사용 — SHORTS_THUMBNAIL_FRAME 설정 시 활성화)`);
   }
 
   // 6. Auto-post first comment with direct link to the blog post

@@ -35,6 +35,11 @@ async function main() {
   console.log("uploadStatus:", v.status?.uploadStatus);
   console.log("tags:", v.snippet?.tags?.slice(0, 5).join(", "));
   console.log("desc preview:", v.snippet?.description?.slice(0, 200));
+  console.log("\nthumbnails:");
+  for (const [k, t] of Object.entries(v.snippet?.thumbnails ?? {})) {
+    const tt = t as { url?: string; width?: number; height?: number };
+    console.log(`  ${k}: ${tt.url} (${tt.width}x${tt.height})`);
+  }
 }
 
 main().catch((e) => {

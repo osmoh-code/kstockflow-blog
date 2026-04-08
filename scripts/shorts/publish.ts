@@ -91,17 +91,16 @@ async function main() {
   });
   console.log(`   ✅ public 전환 완료`);
 
-  // 2. Upload custom thumbnail (first frame of mp4) — re-tries here in case
-  //    upload.ts thumbnail step failed earlier (race conditions / private mode).
-  if (!isBareDate) {
+  // 2. Upload custom thumbnail — DISABLED by default (2026-04-08).
+  //    See upload.ts comment for rationale: new channels show blank on mobile
+  //    when API custom thumbnails are set. Set SHORTS_THUMBNAIL_FRAME env to
+  //    re-enable when the channel matures.
+  if (!isBareDate && process.env.SHORTS_THUMBNAIL_FRAME) {
     try {
       const mp4 = path.join("dist", "shorts", "approved", slug, `${slug}.mp4`);
       const baseDir = path.join("dist", "shorts", "approved", slug);
       if (fs.existsSync(mp4)) {
-        // Default frame 30 (= 1.0s @ 30fps), AFTER HookScene entrance
-        // animation (frame 0~18). Frame 0 is intentionally avoided because
-        // it produces a near-black thumbnail.
-        const frameIdx = parseInt(process.env.SHORTS_THUMBNAIL_FRAME ?? "30", 10);
+        const frameIdx = parseInt(process.env.SHORTS_THUMBNAIL_FRAME, 10);
         const thumbnailJpg = extractFrameToJpg(mp4, baseDir, frameIdx);
         await uploadVideoThumbnail(youtube, videoId, thumbnailJpg);
         console.log(`   🖼️  썸네일 업로드 완료 (frame ${frameIdx})`);

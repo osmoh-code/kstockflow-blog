@@ -15,15 +15,19 @@ export const HookScene: React.FC<Props> = ({ scene }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
-  // Smooth spring entrance
+  // ⚠️ NO opacity fade-in: frame 0 must show the title at full opacity so
+  // YouTube Shorts mobile feed picks it as the auto-thumbnail. Mobile Shorts
+  // ignores the API custom thumbnail (thumbnails.set) and uses the video's
+  // very first visible frame instead. The slide animation is kept (slideY
+  // 50→0) for a subtle entrance, but opacity stays at 1 throughout.
   const enter = spring({
     frame,
     fps,
     config: { damping: 16, stiffness: 100 },
     durationInFrames: 18,
   });
-  const slideY = interpolate(enter, [0, 1], [50, 0]);
-  const opacity = interpolate(frame, [0, 8], [0, 1], { extrapolateRight: "clamp" });
+  const slideY = interpolate(enter, [0, 1], [20, 0]); // smaller offset since no fade
+  const opacity = 1;
 
   // Hot-issues mode: detected when onScreenText contains a newline (2-line title)
   // OR when narration is significantly longer than onScreenText.
