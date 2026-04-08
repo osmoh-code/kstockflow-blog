@@ -19,6 +19,7 @@ import path from "node:path";
 import { google } from "googleapis";
 import { createAuthenticatedClient } from "./lib/youtube-oauth";
 import { approvedDir, mp4Path, pendingDir, scriptJsonPath } from "./lib/shorts-paths";
+import { extractFrameToJpg, uploadVideoThumbnail } from "./lib/thumbnail";
 import type { ShortsScript } from "./types";
 
 type Privacy = "public" | "unlisted" | "private";
@@ -99,7 +100,24 @@ export async function uploadShort(slug: string, opts: UploadOpts = {}): Promise<
     throw new Error("YouTube API 응답에 video ID 없음");
   }
 
-  // 5. Auto-post first comment with direct link to the blog post
+  // 5. Extract a frame from mp4 and upload as YouTube thumbnail.
+  //    Default: frame 30 (= 1.0 second @ 30fps), which is AFTER the HookScene
+  //    entrance animation (opacity 0→1 over frames 0~8, spring slide done at
+  //    frame ~18). Frame 0 is intentionally NOT used because the Hook
+  //    content is invisible at that point — only the static letterbox
+  //    header would show, producing a near-black thumbnail.
+  //    Override with SHORTS_THUMBNAIL_FRAME env var.
+  try {
+    const frameIdx = parseInt(process.env.SHORTS_THUMBNAIL_FRAME ?? "30", 10);
+    const thumbnailJpg = extractFrameToJpg(videoFile, baseDir, frameIdx);
+    await uploadVideoThumbnail(youtube, videoId, thumbnailJpg);
+    console.log(`   🖼️  썸네일 업로드 완료 (frame ${frameIdx})`);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.log(`   ⚠️  썸네일 업로드 실패 (영상은 정상 업로드됨): ${msg.slice(0, 150)}`);
+  }
+
+  // 6. Auto-post first comment with direct link to the blog post
   // Hot-issues uses keyword title, featured-stocks uses date-based template
   const hotIssuesTitleForComment = script?.hook?.onScreenText?.includes("\n")
     ? script.hook.onScreenText.replace(/\n/g, " ").trim()

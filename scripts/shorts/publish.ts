@@ -20,6 +20,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { google } from "googleapis";
 import { createAuthenticatedClient } from "./lib/youtube-oauth";
+import { extractFrameToJpg, uploadVideoThumbnail } from "./lib/thumbnail";
 import { buildFirstCommentText, buildPostUrl } from "./upload";
 
 // Load .env.local
@@ -90,7 +91,30 @@ async function main() {
   });
   console.log(`   ✅ public 전환 완료`);
 
-  // 2. Post first comment with direct post link.
+  // 2. Upload custom thumbnail (first frame of mp4) — re-tries here in case
+  //    upload.ts thumbnail step failed earlier (race conditions / private mode).
+  if (!isBareDate) {
+    try {
+      const mp4 = path.join("dist", "shorts", "approved", slug, `${slug}.mp4`);
+      const baseDir = path.join("dist", "shorts", "approved", slug);
+      if (fs.existsSync(mp4)) {
+        // Default frame 30 (= 1.0s @ 30fps), AFTER HookScene entrance
+        // animation (frame 0~18). Frame 0 is intentionally avoided because
+        // it produces a near-black thumbnail.
+        const frameIdx = parseInt(process.env.SHORTS_THUMBNAIL_FRAME ?? "30", 10);
+        const thumbnailJpg = extractFrameToJpg(mp4, baseDir, frameIdx);
+        await uploadVideoThumbnail(youtube, videoId, thumbnailJpg);
+        console.log(`   🖼️  썸네일 업로드 완료 (frame ${frameIdx})`);
+      } else {
+        console.log(`   ⏭️  mp4 없음, 썸네일 업로드 건너뜀`);
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.log(`   ⚠️  썸네일 업로드 실패 (publish는 계속): ${msg.slice(0, 150)}`);
+    }
+  }
+
+  // 3. Post first comment with direct post link.
   // Hot-issues uses keyword title, featured-stocks uses date-based template.
   console.log(`💬 첫 댓글 추가 중... (${hotIssuesTitle ? "hot-issues" : "featured/legacy"} 모드)`);
   const text = buildFirstCommentText(monthDay, postUrl, hotIssuesTitle);
