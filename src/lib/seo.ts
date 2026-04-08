@@ -97,7 +97,10 @@ export function generateOrganizationStructuredData(): string {
     },
     description:
       "한국 주식 시장의 특징주, 핫이슈, 신규 상장주, 재료와 테마 뉴스를 한눈에. 재료 기반의 깊이 있는 시장 인사이트를 제공합니다.",
-    sameAs: [],
+    // sameAs links establish entity connections for E-E-A-T and knowledge graph
+    sameAs: [
+      "https://www.youtube.com/@K주식핫이슈",
+    ],
   };
 
   return JSON.stringify(structuredData);

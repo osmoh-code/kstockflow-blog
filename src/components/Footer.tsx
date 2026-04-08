@@ -3,10 +3,10 @@ import { TrendingUp, Github, Twitter, Mail } from "lucide-react";
 import { SITE_NAME, CATEGORIES } from "@/lib/constants";
 
 const LEGAL_LINKS = [
-  { label: "소개", href: "/about" },
-  { label: "개인정보처리방침", href: "/privacy" },
-  { label: "면책조항", href: "/disclaimer" },
-  { label: "문의", href: "/contact" },
+  { label: "소개", href: "/about/" },
+  { label: "개인정보처리방침", href: "/privacy/" },
+  { label: "면책조항", href: "/disclaimer/" },
+  { label: "문의", href: "/contact/" },
 ] as const;
 
 export default function Footer() {

@@ -2,7 +2,7 @@ export const SITE_NAME = "K-주식 핫이슈";
 export const SITE_URL = "https://kstockflow.com";
 export const SITE_DESCRIPTION =
   "한국 주식 시장의 특징주, 핫이슈, 신규 상장주를 한눈에. 재료 기반의 깊이 있는 시장 인사이트를 제공합니다.";
-export const AUTHOR_NAME = "K-주식 핫이슈 편집팀";
+export const AUTHOR_NAME = "전조";
 export const DEFAULT_OG_IMAGE = "/images/og-default.png";
 
 export const ADSENSE_CLIENT_ID = process.env.NEXT_PUBLIC_ADSENSE_CLIENT_ID ?? "";
