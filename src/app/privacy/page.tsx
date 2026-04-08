@@ -489,9 +489,17 @@ export default function PrivacyPage() {
               <strong>개인정보 보호책임자</strong>
             </p>
             <ul className="mt-2 space-y-1 text-sm">
-              <li>성명: [담당자명]</li>
+              <li>성명: 전조 (필명)</li>
               <li>직위: 운영자</li>
-              <li>이메일: [contact@kstockflow.com]</li>
+              <li>
+                이메일:{" "}
+                <a
+                  href="mailto:kstockflow.official@gmail.com"
+                  className="text-brand-accent hover:underline"
+                >
+                  kstockflow.official@gmail.com
+                </a>
+              </li>
             </ul>
           </div>
           <p className="mt-4 text-sm text-brand-muted">

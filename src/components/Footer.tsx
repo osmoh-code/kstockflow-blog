@@ -93,7 +93,7 @@ export default function Footer() {
                 <Github className="h-4 w-4" />
               </a>
               <a
-                href="mailto:contact@kstockflow.com"
+                href="mailto:kstockflow.official@gmail.com"
                 className="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-700 text-gray-400 transition-colors duration-150 hover:bg-gray-600 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-accent"
                 aria-label="이메일"
               >

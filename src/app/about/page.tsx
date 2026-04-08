@@ -65,6 +65,93 @@ export default function AboutPage() {
             </p>
           </section>
 
+          {/* Operator Profile — YMYL E-E-A-T requirement */}
+          <section className="mb-12">
+            <h2 className="text-2xl font-bold text-brand-dark border-b-2 border-red-500 pb-3 mb-6">
+              운영자 소개
+            </h2>
+            <div className="bg-gradient-to-br from-red-50 to-orange-50 border border-red-200 rounded-2xl p-6 md:p-8 not-prose mb-6">
+              <div className="flex items-start gap-5">
+                <div className="flex-shrink-0 w-20 h-20 bg-gradient-to-br from-red-600 to-red-800 rounded-full flex items-center justify-center text-white text-3xl font-extrabold shadow-lg">
+                  전조
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-2xl font-bold text-brand-dark mb-1">
+                    전조 <span className="text-base font-normal text-gray-500">(前兆, 필명)</span>
+                  </h3>
+                  <p className="text-red-700 font-semibold text-sm mb-3">
+                    K-주식 핫이슈 단독 운영자
+                  </p>
+                  <p className="text-gray-700 text-sm leading-relaxed">
+                    <strong>&ldquo;전조(前兆)&rdquo;</strong>는 주식시장이 본격적으로 움직이기 전 나타나는 조기 신호를 의미합니다.
+                    필명에 담긴 의미 그대로, 개인 투자자에게 시장의 재료와 테마를 가장 먼저 그리고
+                    명확하게 전달하는 것이 본 블로그의 사명입니다.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <h3 className="text-xl font-bold text-brand-dark mt-8 mb-4">
+              경력 및 전문성
+            </h3>
+            <ul className="list-disc pl-6 space-y-2">
+              <li>
+                <strong>자산운용업계 10년 이상 실무 경험</strong> — 펀드매니저 및 주식 리서치 업무 수행
+              </li>
+              <li>
+                <strong>수천 건의 기업 분석</strong> 및 종목 스크리닝, 포트폴리오 리밸런싱 경력
+              </li>
+              <li>
+                한국 주식시장의 <strong>수급·재료·테마 분석</strong> 전문
+              </li>
+              <li>
+                KRX, DART, ECOS 등 <strong>공식 1차 데이터 기반 리서치</strong> 방법론 숙달
+              </li>
+              <li>
+                파생상품(선물·옵션) 및 해외 주식 실전 투자 경험
+              </li>
+            </ul>
+
+            <h3 className="text-xl font-bold text-brand-dark mt-8 mb-4">
+              분석 철학
+            </h3>
+            <ul className="list-disc pl-6 space-y-2">
+              <li>
+                <strong>재료 중심(Catalyst-driven) 접근법</strong>: 가격 변동의 근본 원인이 되는 재료·공시·정책 변화를 추적합니다.
+                단순한 차트 분석이나 기술적 지표에 의존하지 않습니다.
+              </li>
+              <li>
+                <strong>공식 출처 우선주의</strong>: 모든 분석은 KRX 공시, DART 전자공시, 한국은행 ECOS, 기업 IR 자료, 정부 정책
+                발표 등 검증 가능한 1차 자료에서 출발합니다.
+              </li>
+              <li>
+                <strong>팩트 체크 필수</strong>: 루머, 추측, 확인되지 않은 소문은 절대 게시하지 않습니다. 모든 수치와 사실은
+                복수의 출처로 교차 검증합니다.
+              </li>
+              <li>
+                <strong>독립적 관점</strong>: 본 블로그는 어떤 증권사, 운용사, 금융 기관에도 소속되지 않은 개인 블로그입니다.
+                특정 종목 매수·매도 알선이나 보상을 받지 않습니다.
+              </li>
+            </ul>
+
+            <h3 className="text-xl font-bold text-brand-dark mt-8 mb-4">
+              필명을 사용하는 이유
+            </h3>
+            <p>
+              본 블로그는 운영자의 개인적 견해를 담은 정보 제공 채널로, 소속 기관의 공식 입장과
+              무관한 독립 콘텐츠임을 명확히 하기 위해 필명 <strong>&ldquo;전조&rdquo;</strong>를 사용합니다. 필명
+              사용은 소속 기관과의 이해상충 방지 및 법적 독립성 확보를 위한 일반적인 업계
+              관행이며, 콘텐츠의 객관성과 신뢰성을 약화시키지 않습니다.
+            </p>
+            <p>
+              개인적인 문의, 제보, 협업 제안 등은{" "}
+              <Link href="/contact/" className="text-red-600 underline font-medium">
+                문의 페이지
+              </Link>
+              를 통해 연락해 주세요.
+            </p>
+          </section>
+
           {/* What We Cover */}
           <section className="mb-12">
             <h2 className="text-2xl font-bold text-brand-dark border-b-2 border-red-500 pb-3 mb-6">
