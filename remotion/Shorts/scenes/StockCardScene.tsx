@@ -111,37 +111,39 @@ export const StockCardScene: React.FC<Props> = ({ scene }) => {
           )}
         </div>
 
-        {/* Center section: HUGE animated change percentage */}
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            flex: 1,
-            gap: 0,
-          }}
-        >
-          <AnimatedNumber
-            value={Math.abs(changePercent)}
-            prefix={isUp ? "+" : "-"}
-            suffix="%"
-            color={isUp ? COLORS.accent : COLORS.green}
-            fontSize={FONT_SIZES.stockChange}
-          />
+        {/* Center section: HUGE animated change percentage — hidden when suppressStats */}
+        {!scene.suppressStats && (
           <div
             style={{
-              fontFamily: FONTS.body,
-              fontSize: 32,
-              color: COLORS.textSecondary,
-              fontWeight: 600,
-              marginTop: 12,
-              letterSpacing: 1,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              flex: 1,
+              gap: 0,
             }}
           >
-            {isUp ? "▲ 상승" : "▼ 하락"}
+            <AnimatedNumber
+              value={Math.abs(changePercent)}
+              prefix={isUp ? "+" : "-"}
+              suffix="%"
+              color={isUp ? COLORS.accent : COLORS.green}
+              fontSize={FONT_SIZES.stockChange}
+            />
+            <div
+              style={{
+                fontFamily: FONTS.body,
+                fontSize: 32,
+                color: COLORS.textSecondary,
+                fontWeight: 600,
+                marginTop: 12,
+                letterSpacing: 1,
+              }}
+            >
+              {isUp ? "▲ 상승" : "▼ 하락"}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Bottom section: reason / 이유 */}
         <div

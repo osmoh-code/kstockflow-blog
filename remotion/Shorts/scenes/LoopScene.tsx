@@ -19,7 +19,25 @@ export const LoopScene: React.FC<Props> = ({ scene }) => {
   const tableSpring = spring({ frame, fps, config: { damping: 14, stiffness: 120 }, durationInFrames: 16 });
 
   const rows = scene.tableRows ?? [];
-  const title = "그 외 오늘의 특징주";
+  const suppressStats = scene.suppressStats;
+  // Hot-issues: title comes from scene.onScreenText (set in script.ts buildHotIssuesScript)
+  // featured-stocks: legacy hardcoded title
+  const title = suppressStats
+    ? scene.onScreenText && scene.onScreenText.trim().length > 0
+      ? scene.onScreenText
+      : "관련주 전체"
+    : "그 외 오늘의 특징주";
+
+  // Compact mode: when table has many rows OR suppressStats is on,
+  // use smaller fonts/padding to fit everything within safe zone
+  const compact = suppressStats || rows.length >= 7;
+  const titleFontSize = compact ? 56 : 72;
+  const tableTopOffset = compact ? 110 : 140;
+  const rowPaddingY = compact ? 10 : 18;
+  const rowPaddingX = compact ? 24 : 28;
+  const rowGap = compact ? 7 : 10;
+  const stockNameSize = compact ? 38 : 48;
+  const sectorSize = compact ? 22 : 26;
 
   return (
     <AbsoluteFill>
@@ -37,11 +55,12 @@ export const LoopScene: React.FC<Props> = ({ scene }) => {
         <div
           style={{
             fontFamily: FONTS.heading,
-            fontSize: 72,
+            fontSize: titleFontSize,
             fontWeight: 900,
             color: COLORS.text,
             textShadow: SHADOWS.textHero,
             letterSpacing: -1,
+            lineHeight: 1.05,
           }}
         >
           {title}
@@ -53,13 +72,13 @@ export const LoopScene: React.FC<Props> = ({ scene }) => {
         style={{
           position: "absolute",
           left: SAFE_ZONE_CENTER.x + 20,
-          top: SAFE_ZONE_CENTER.y + 140,
+          top: SAFE_ZONE_CENTER.y + tableTopOffset,
           width: SAFE_ZONE_CENTER.width - 40,
           transform: `scale(${tableSpring}) translateY(${interpolate(tableSpring, [0, 1], [40, 0])}px)`,
           opacity: fadeIn,
           display: "flex",
           flexDirection: "column",
-          gap: 10,
+          gap: rowGap,
         }}
       >
         {rows.map((row, i) => {
@@ -77,7 +96,7 @@ export const LoopScene: React.FC<Props> = ({ scene }) => {
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
-                padding: "18px 28px",
+                padding: `${rowPaddingY}px ${rowPaddingX}px`,
                 background: "rgba(17, 24, 39, 0.85)",
                 borderLeft: `6px solid ${isUp ? COLORS.accent : COLORS.green}`,
                 borderRadius: 12,
@@ -85,17 +104,18 @@ export const LoopScene: React.FC<Props> = ({ scene }) => {
                 transform: `translateX(${interpolate(staggered, [0, 1], [-30, 0])}px)`,
               }}
             >
-              <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
                 <div
                   style={{
                     fontFamily: FONTS.heading,
-                    fontSize: 48,
+                    fontSize: stockNameSize,
                     fontWeight: 900,
                     color: COLORS.text,
                     whiteSpace: "nowrap",
                     overflow: "hidden",
                     textOverflow: "ellipsis",
                     letterSpacing: -1,
+                    lineHeight: 1.1,
                   }}
                 >
                   {row.name}
@@ -103,57 +123,63 @@ export const LoopScene: React.FC<Props> = ({ scene }) => {
                 <div
                   style={{
                     fontFamily: FONTS.body,
-                    fontSize: 26,
+                    fontSize: sectorSize,
                     color: COLORS.textMuted,
                     whiteSpace: "nowrap",
+                    lineHeight: 1.2,
                   }}
                 >
                   {row.sector}
                 </div>
               </div>
-              <div
-                style={{
-                  fontFamily: FONTS.number,
-                  fontSize: 56,
-                  fontWeight: 900,
-                  color: isUp ? COLORS.accent : COLORS.green,
-                  textShadow: `0 0 16px ${isUp ? COLORS.accent : COLORS.green}50`,
-                  letterSpacing: -1,
-                  marginLeft: 16,
-                }}
-              >
-                {isUp ? "+" : ""}
-                {row.changePercent.toFixed(2)}%
-              </div>
+              {!suppressStats && (
+                <div
+                  style={{
+                    fontFamily: FONTS.number,
+                    fontSize: 56,
+                    fontWeight: 900,
+                    color: isUp ? COLORS.accent : COLORS.green,
+                    textShadow: `0 0 16px ${isUp ? COLORS.accent : COLORS.green}50`,
+                    letterSpacing: -1,
+                    marginLeft: 16,
+                  }}
+                >
+                  {isUp ? "+" : ""}
+                  {row.changePercent.toFixed(2)}%
+                </div>
+              )}
             </div>
           );
         })}
       </div>
 
-      {/* Bottom CTA hint */}
-      <div
-        style={{
-          position: "absolute",
-          left: SAFE_ZONE_CENTER.x,
-          top: SAFE_ZONE_CENTER.y + SAFE_ZONE_CENTER.height - 120,
-          width: SAFE_ZONE_CENTER.width,
-          textAlign: "center",
-          opacity: fadeIn,
-        }}
-      >
+      {/* Bottom CTA hint — hidden in compact/hot-issues mode (next scene is the CTA anyway,
+          and we need the vertical space for the table) */}
+      {!compact && (
         <div
           style={{
-            fontFamily: FONTS.heading,
-            fontSize: 44,
-            fontWeight: 700,
-            color: COLORS.gold,
-            textShadow: `0 0 20px ${COLORS.gold}80`,
-            letterSpacing: 0,
+            position: "absolute",
+            left: SAFE_ZONE_CENTER.x,
+            top: SAFE_ZONE_CENTER.y + SAFE_ZONE_CENTER.height - 120,
+            width: SAFE_ZONE_CENTER.width,
+            textAlign: "center",
+            opacity: fadeIn,
           }}
         >
-          자세한 내용은 👆 K주식핫이슈에서
+          <div
+            style={{
+              fontFamily: FONTS.heading,
+              fontSize: 44,
+              fontWeight: 700,
+              color: COLORS.gold,
+              textShadow: `0 0 20px ${COLORS.gold}80`,
+              letterSpacing: 0,
+            }}
+          >
+            자세한 내용은 👆 K주식핫이슈에서
+          </div>
         </div>
-      </div>
+      )}
     </AbsoluteFill>
   );
 };

@@ -1,6 +1,75 @@
 import type { TopStock } from "../types";
 
 /**
+ * Parse the hot-issues 3-column related-stocks table.
+ *
+ * Expected format:
+ *   | 구분 | 종목 | 핵심 포인트 |
+ *   |------|------|-------------|
+ *   | 대장주 | 대우건설 | +24.95% 급등, 중동 플랜트 ... |
+ *
+ * Unlike featured-stocks, this table has no explicit 등락률 or 거래대금 columns.
+ * We extract any `+XX.XX%` pattern from the 핵심 포인트 cell into changePercent;
+ * if absent, changePercent defaults to 0 (UI renders "-" gracefully).
+ *
+ * Returns rows in the table's original order (which matches post priority:
+ * 대장주 → 수혜주 → 관련주).
+ */
+export function parseHotIssuesTable(content: string): readonly TopStock[] {
+  const lines = content.split("\n");
+  const stocks: TopStock[] = [];
+
+  let inTable = false;
+  let headerSeen = false;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+
+    // Detect hot-issues table header: has 구분 + 종목 + 핵심
+    if (!inTable && trimmed.startsWith("|") && trimmed.includes("구분") && trimmed.includes("종목") && trimmed.includes("핵심")) {
+      inTable = true;
+      headerSeen = false;
+      continue;
+    }
+
+    if (!inTable) continue;
+
+    if (!trimmed.startsWith("|")) {
+      if (stocks.length > 0) break;
+      continue;
+    }
+
+    if (!headerSeen) {
+      if (/^\|[\s\-:|]+\|$/.test(trimmed)) {
+        headerSeen = true;
+        continue;
+      }
+      headerSeen = true;
+    }
+
+    const cells = parseRow(trimmed);
+    if (cells.length < 3) continue;
+
+    const [category, name, keyPoint] = cells;
+    if (name.length === 0) continue;
+
+    // Extract changePercent from 핵심 포인트 if present (e.g. "+24.95% 급등, ...")
+    const pctMatch = /([+-]?\d+(?:\.\d+)?)\s*%/.exec(keyPoint);
+    const changePercent = pctMatch ? parseFloat(pctMatch[1]) : 0;
+
+    stocks.push({
+      name,
+      sector: category, // 대장주/수혜주/관련주 → sector field
+      reason: keyPoint, // full "핵심 포인트" text → reason field (shown below chart)
+      changePercent,
+      tradeAmount: "", // not available in hot-issues table
+    });
+  }
+
+  return stocks;
+}
+
+/**
  * Parse the "오늘의 특징주 한눈에 보기" markdown table from a featured-stocks post.
  *
  * Expected format:

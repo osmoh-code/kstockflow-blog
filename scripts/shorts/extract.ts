@@ -10,12 +10,20 @@
 
 import fs from "node:fs";
 import { loadPost, getRelatedStocks, getTags } from "./lib/load-post";
-import { parseFeatureTable } from "./lib/table-parser";
-import { extractMarkPhrases, extractSectorHeadings, extractSectorLeaders } from "./lib/mark-extractor";
+import { parseFeatureTable, parseHotIssuesTable } from "./lib/table-parser";
+import {
+  extractHookSummary,
+  extractMarkPhrases,
+  extractSectorHeadings,
+  extractSectorLeaders,
+  extractStockDescriptions,
+} from "./lib/mark-extractor";
+import { summarizeStockDescriptions } from "./lib/summarize-stocks";
 import { ensureDir, inputJsonPath, pendingDir } from "./lib/shorts-paths";
 import type { ShortsInputData, TopStock } from "./types";
 
-const TOP_N = 5;
+const TOP_N_FEATURED = 5;     // featured-stocks: sector Top 5
+const TOP_N_HOT_ISSUES = 10;  // hot-issues: include all related stocks up to 10
 const MAX_HOOK_CANDIDATES = 5;
 
 export async function extract(slug: string, opts: { force?: boolean } = {}): Promise<ShortsInputData> {
@@ -28,6 +36,67 @@ export async function extract(slug: string, opts: { force?: boolean } = {}): Pro
   }
 
   const post = loadPost(slug);
+  const category = String(post.data.category ?? "hot-issues");
+
+  // =====================================================
+  // Branch: hot-issues (3-column table, theme-based post)
+  // =====================================================
+  if (category === "hot-issues") {
+    const hotStocks = parseHotIssuesTable(post.content);
+    // Per-stock long descriptions from "### N. 종목명" sections (1~3 sentences,
+    // up to ~300 chars), then Gemini summarizes each into ~70~95 char single
+    // sentences that combine theme rationale + stock-specific strength.
+    const descriptions = extractStockDescriptions(post.content, 3, 300);
+    console.log(`   📝 ${descriptions.size}개 종목 설명 추출, Gemini 요약 호출 중...`);
+    let summaries: Map<string, string>;
+    try {
+      summaries = await summarizeStockDescriptions(
+        Array.from(descriptions.entries()).map(([name, description]) => ({ name, description })),
+      );
+      console.log(`   ✅ ${summaries.size}개 요약 완료`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.log(`   ⚠️  Gemini 요약 실패, raw description 사용: ${msg.slice(0, 100)}`);
+      summaries = descriptions; // fallback
+    }
+
+    const enrichedStocks = hotStocks.map((s) => ({
+      ...s,
+      // Priority: Gemini summary > raw description > table 핵심 포인트
+      reason: summaries.get(s.name) ?? descriptions.get(s.name) ?? s.reason,
+    }));
+
+    // Include all up to TOP_N_HOT_ISSUES (10). User's requirement: all stocks
+    // unless the post has more than 10 related stocks.
+    const topStocks = enrichedStocks.slice(0, TOP_N_HOT_ISSUES);
+    const hookSummary = extractHookSummary(post.content, 2);
+    const markPhrases = extractMarkPhrases(post.content);
+
+    const data: ShortsInputData = {
+      slug,
+      date: String(post.data.date ?? ""),
+      title: String(post.data.title ?? ""),
+      description: String(post.data.description ?? ""),
+      category,
+      relatedStocks: getRelatedStocks(post),
+      tags: getTags(post),
+      thumbnailPath: typeof post.data.thumbnail === "string" ? post.data.thumbnail : null,
+      topStocks,
+      allStocks: enrichedStocks,
+      markPhrases,
+      sectorHeadings: [],
+      hookCandidates: hookSummary ? [hookSummary] : [],
+      hookSummary,
+    };
+
+    ensureDir(pendingDir(slug));
+    fs.writeFileSync(cachePath, JSON.stringify(data, null, 2), "utf-8");
+    return data;
+  }
+
+  // =====================================================
+  // Branch: featured-stocks (existing logic)
+  // =====================================================
 
   // 1. Parse the full stocks table for prices/등락률/거래대금 data
   const allStocks = parseFeatureTable(post.content);
@@ -44,11 +113,11 @@ export async function extract(slug: string, opts: { force?: boolean } = {}): Pro
   const topStocks: TopStock[] = sectorLeaders
     .map((leader) => stockMap.get(leader.leaderName))
     .filter((s): s is TopStock => s !== undefined)
-    .slice(0, TOP_N);
+    .slice(0, TOP_N_FEATURED);
 
   // Fallback: if sector leaders can't be matched (e.g., post format differs),
   // fall back to the top-gain stocks from the table
-  const finalTopStocks = topStocks.length >= 3 ? topStocks : allStocks.slice(0, TOP_N);
+  const finalTopStocks = topStocks.length >= 3 ? topStocks : allStocks.slice(0, TOP_N_FEATURED);
 
   const markPhrases = extractMarkPhrases(post.content);
   const sectorHeadings = extractSectorHeadings(post.content);
@@ -59,6 +128,7 @@ export async function extract(slug: string, opts: { force?: boolean } = {}): Pro
     date: String(post.data.date ?? ""),
     title: String(post.data.title ?? ""),
     description: String(post.data.description ?? ""),
+    category,
     relatedStocks: getRelatedStocks(post),
     tags: getTags(post),
     thumbnailPath: typeof post.data.thumbnail === "string" ? post.data.thumbnail : null,
@@ -67,6 +137,7 @@ export async function extract(slug: string, opts: { force?: boolean } = {}): Pro
     markPhrases,
     sectorHeadings,
     hookCandidates,
+    hookSummary: null,
   };
 
   ensureDir(pendingDir(slug));

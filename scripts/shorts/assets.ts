@@ -109,18 +109,29 @@ export async function buildAssets(
   console.log(`      📊 실제 ${realCount}개 / fallback ${fallbackCount}개 / 코드없음 ${noCodeCount}개`);
 
   // 3. Build RenderScenes with frame-accurate timing
-  // Build table rows for Loop scene — exclude stocks already shown in Body
-  const bodyStockNames = new Set(
-    script.body.map((s) => s.stockFocus).filter((n): n is string => n !== null),
-  );
-  const remainingStocks: TableRow[] = input.allStocks
-    .filter((s) => !bodyStockNames.has(s.name))
-    .slice(0, 8) // up to 8 rows for visual fit
-    .map((s) => ({
-      name: s.name,
-      changePercent: s.changePercent,
-      sector: s.sector,
-    }));
+  // Build table rows for Loop scene.
+  //   - hot-issues: show ALL stocks in original table order (up to 10)
+  //   - featured-stocks: show stocks not already covered in Body (legacy behavior)
+  const loopTableRows: TableRow[] =
+    input.category === "hot-issues"
+      ? input.allStocks.slice(0, 10).map((s) => ({
+          name: s.name,
+          changePercent: s.changePercent,
+          sector: s.sector,
+        }))
+      : (() => {
+          const bodyStockNames = new Set(
+            script.body.map((s) => s.stockFocus).filter((n): n is string => n !== null),
+          );
+          return input.allStocks
+            .filter((s) => !bodyStockNames.has(s.name))
+            .slice(0, 8)
+            .map((s) => ({
+              name: s.name,
+              changePercent: s.changePercent,
+              sector: s.sector,
+            }));
+        })();
 
   const scenes: RenderScene[] = [];
   let cumulativeChars = 0;
@@ -140,7 +151,7 @@ export async function buildAssets(
     if (durationFrames < 15) durationFrames = 15;
 
     const stockData = seg.stockFocus ? stockSnapshots.get(seg.stockFocus) ?? null : null;
-    const tableRows = seg.type === "loop" ? remainingStocks : null;
+    const tableRows = seg.type === "loop" ? loopTableRows : null;
     const priceHistory = seg.stockFocus ? priceHistoryMap.get(seg.stockFocus) ?? null : null;
     // MDX 테이블의 "상승이유" 컬럼에서 lookup
     const reason = seg.stockFocus
@@ -149,6 +160,12 @@ export async function buildAssets(
 
     // Promote stock_card → chart when we have price history (Phase 2 chart)
     const sceneType: SceneType = seg.type === "stock_card" && priceHistory ? "chart" : seg.type;
+
+    // Hot-issues: suppress % display in body scenes AND loop table scene
+    // because the post may be read days later and the live % has drifted.
+    const suppressStats =
+      input.category === "hot-issues" &&
+      (sceneType === "chart" || sceneType === "stock_card" || sceneType === "loop");
 
     scenes.push({
       type: sceneType,
@@ -160,6 +177,7 @@ export async function buildAssets(
       priceHistory,
       mainBusiness: seg.mainBusiness,
       reason,
+      suppressStats,
       startFrame: cumulativeFrames,
       durationFrames,
       ctaProps: seg.ctaProps,
@@ -196,6 +214,12 @@ export async function buildAssets(
   const bgmVolumeRaw = Number.parseFloat(process.env.SHORTS_BGM_VOLUME ?? "");
   const bgmVolume = Number.isFinite(bgmVolumeRaw) ? bgmVolumeRaw : 0.10;
 
+  // Header title: featured-stocks uses date, hot-issues uses shortened post title
+  const headerTitle =
+    input.category === "hot-issues"
+      ? buildHotIssuesHeaderTitle(input.title)
+      : formatHeaderTitle(input.date);
+
   const assets: ShortsAssets = {
     slug: input.slug,
     audioSrc: audioFilename,
@@ -204,7 +228,7 @@ export async function buildAssets(
     scenes,
     sfxCues,
     totalDurationSec,
-    headerTitle: formatHeaderTitle(input.date),
+    headerTitle,
     footerBrand: "K주식핫이슈",
     footerHint: "프로필 → 전체 분석",
   };
@@ -263,7 +287,23 @@ function collectSegments(script: ShortsScript): Segment[] {
     });
   }
 
-  // CTA (final scene — Loop removed per user request: 30초 이내 + 테이블 짜르기)
+  // Loop scene — INCLUDED only if loop.narration is non-empty
+  // (hot-issues populates it; featured-stocks leaves it empty so it's dropped)
+  if (script.loop?.narration && script.loop.narration.trim().length > 0) {
+    segments.push({
+      type: "loop",
+      narration: script.loop.narration,
+      onScreenText: script.loop.onScreenText,
+      visualDirection: script.loop.visualDirection,
+      emphasisWords: [],
+      stockFocus: null,
+      mainBusiness: null,
+      ctaProps: null,
+      charCount: countKoreanChars(script.loop.narration),
+    });
+  }
+
+  // CTA (final scene)
   segments.push({
     type: "cta",
     narration: script.cta.narration,
@@ -293,6 +333,80 @@ function formatHeaderTitle(dateStr: string): string {
   const month = parseInt(m[2], 10);
   const day = parseInt(m[3], 10);
   return `${month}월 ${day}일 주목해야 할 종목`;
+}
+
+/**
+ * Build a 2-line header title for hot-issues from the blog post title.
+ *
+ * Returns a string with a single \n separator. The Letterbox component uses
+ * whiteSpace: "pre-line" to render the newline and auto-reduces font size
+ * when 2+ lines are present.
+ *
+ * Split strategy — context vs. stock-category noun:
+ *   Line 1: context/keyword (theme, trigger, 기대감, etc.)
+ *   Line 2: stock category + "TOP N"
+ *
+ * Split anchor priority:
+ *   1. Last word ending in "주" (건설주, 방산주, 반도체주, 2차전지주 ...)
+ *   2. Last non-trivial word before "관련주"
+ *   3. Middle word (fallback)
+ *
+ * Examples:
+ *   "중동전쟁 종전 기대감 건설주 관련주 TOP 7 | 대장주·수혜주·테마주 총정리"
+ *     → "중동전쟁 종전 기대감\n건설주 TOP 7"
+ *
+ *   "엔비디아 광통신 관련주 TOP 10 | ..."
+ *     → "엔비디아\n광통신 TOP 10"
+ *
+ *   "스테이블코인·에이전틱 AI 관련주 TOP 5 | ..."
+ *     → "스테이블코인·에이전틱\nAI TOP 5"
+ */
+function buildHotIssuesHeaderTitle(title: string): string {
+  // 1. Remove subtitle
+  const beforePipe = title.split("|")[0].trim();
+
+  // 2. Extract "TOP N" (keep separator so line 2 reads naturally)
+  const topMatch = /TOP\s*(\d+)/i.exec(beforePipe);
+  const topSuffix = topMatch ? `TOP ${topMatch[1]}` : "";
+
+  // 3. Strip "TOP N" and trailing "관련주"/"수혜주"/"테마주" from the core
+  const core = beforePipe
+    .replace(/TOP\s*\d+/gi, "")
+    .replace(/\s*수혜주\s*/g, " ")
+    .replace(/\s*테마주\s*/g, " ")
+    .replace(/\s*관련주\s*/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  const words = core.split(/\s+/).filter((w) => w.length > 0);
+  if (words.length === 0) return title;
+
+  // 4. Find anchor — last word ending in "주" (stock category)
+  //    Exclude trivial matches (e.g., standalone "주" or "기대감주")
+  let anchor = -1;
+  for (let i = words.length - 1; i >= 0; i--) {
+    const w = words[i];
+    if (/주$/.test(w) && w.length >= 2 && !/(기대감|전망|분석|이슈|뉴스)주$/.test(w)) {
+      anchor = i;
+      break;
+    }
+  }
+
+  // 5. Fallback: split in the middle if no "주" anchor found
+  if (anchor < 0) {
+    anchor = Math.max(1, Math.ceil(words.length / 2));
+  }
+
+  // 6. Single-word edge case: don't split, return as-is with TOP suffix
+  if (anchor === 0 || words.length === 1) {
+    return topSuffix ? `${words.join(" ")} ${topSuffix}` : words.join(" ");
+  }
+
+  const line1 = words.slice(0, anchor).join(" ");
+  const line2Body = words.slice(anchor).join(" ");
+  const line2 = topSuffix ? `${line2Body} ${topSuffix}` : line2Body;
+
+  return `${line1}\n${line2}`;
 }
 
 /**

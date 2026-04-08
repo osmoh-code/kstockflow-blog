@@ -99,9 +99,19 @@ export async function uploadShort(slug: string, opts: UploadOpts = {}): Promise<
     throw new Error("YouTube API 응답에 video ID 없음");
   }
 
-  // 5. Auto-post first comment with blog link (option B)
+  // 5. Auto-post first comment with direct link to the blog post
+  // Hot-issues uses keyword title, featured-stocks uses date-based template
+  const hotIssuesTitleForComment = script?.hook?.onScreenText?.includes("\n")
+    ? script.hook.onScreenText.replace(/\n/g, " ").trim()
+    : null;
   try {
-    await postFirstComment(youtube, videoId, monthDayFromSlug(slug));
+    await postFirstComment(
+      youtube,
+      videoId,
+      monthDayFromSlug(slug),
+      buildPostUrl(slug),
+      hotIssuesTitleForComment,
+    );
     console.log(`   💬 첫 댓글 자동 추가 완료 (수동으로 핀 고정 권장)`);
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -125,12 +135,10 @@ async function postFirstComment(
   youtube: ReturnType<typeof google.youtube>,
   videoId: string,
   monthDay: string,
+  postUrl: string,
+  hotIssuesTitle: string | null,
 ): Promise<void> {
-  const text = `📈 ${monthDay} 시장 주도주 전체 분석은 블로그에서 확인하세요!
-
-🔥 K주식핫이슈 → https://kstockflow.com
-
-매일 평일 장 마감 후 업데이트됩니다 ✅`;
+  const text = buildFirstCommentText(monthDay, postUrl, hotIssuesTitle);
 
   await youtube.commentThreads.insert({
     part: ["snippet"],
@@ -167,6 +175,43 @@ function loadScript(primary: string, fallback: string): ShortsScript | null {
   }
 }
 
+/**
+ * Build the canonical blog post URL from a slug.
+ * kstockflow uses trailingSlash:true so the URL must end with "/".
+ */
+export function buildPostUrl(slug: string): string {
+  return `https://kstockflow.com/posts/${slug}/`;
+}
+
+/**
+ * Build the first-comment text for a YouTube Short.
+ *
+ * - For featured-stocks (hotIssuesTitle === null), uses the date-based template
+ *   ("📈 4월 7일 전체 분석 보기")
+ * - For hot-issues (hotIssuesTitle provided), uses the keyword/theme template
+ *   ("📈 중동전쟁 종전 기대감 건설주 TOP 7 전체 분석 보기")
+ *
+ * Both formats include the direct post URL so viewers don't have to search.
+ */
+export function buildFirstCommentText(
+  monthDay: string,
+  postUrl: string,
+  hotIssuesTitle: string | null,
+): string {
+  if (hotIssuesTitle && hotIssuesTitle.length > 0) {
+    return `📈 ${hotIssuesTitle} 전체 분석 보기
+
+👉 ${postUrl}
+
+K주식핫이슈에서 자세한 내용 확인 ✅`;
+  }
+  return `📈 ${monthDay} 전체 분석 보기
+
+👉 ${postUrl}
+
+K주식핫이슈에서 매일 업데이트됩니다 ✅`;
+}
+
 function buildMetadata(
   slug: string,
   script: ShortsScript | null,
@@ -185,20 +230,41 @@ function buildMetadata(
   }
   const uniqueStocks = Array.from(new Set(stockNames));
 
-  const title = `${monthDay} 시장 주도주 급등주 테마주 정리`;
+  const isHotIssues = slug.match(/-stocks$/) === null && !slug.endsWith("-featured-stocks");
+  // Hot-issues: derive title from script.hook.onScreenText (2-line summarized title
+  // like "중동전쟁 종전 기대감\n건설주 TOP 7"), joined into a single searchable line
+  const hookTitle = script?.hook?.onScreenText?.includes("\n")
+    ? script.hook.onScreenText.replace(/\n/g, " ").trim()
+    : null;
+  // YouTube Shorts auto-classification: append "#Shorts" to title as the
+  // strongest signal that this is a vertical short video
+  const baseTitle = isHotIssues
+    ? hookTitle ?? `${monthDaySpaced} ${uniqueStocks[0] ?? ""} 관련 주도주 정리`.trim()
+    : `${monthDay} 시장 주도주 급등주 테마주 정리`;
+  const title = `${baseTitle} #Shorts`;
 
+  const postUrl = buildPostUrl(slug);
   const stocksLine = uniqueStocks.length > 0 ? uniqueStocks.join(", ") : "오늘의 강세 종목";
-  // First line: blog link (most prominent — appears in "더 보기" preview)
-  const description = `🔥 K주식핫이슈 블로그 → https://kstockflow.com
 
-📈 ${monthDaySpaced} 시장을 주도한 핵심 종목 TOP ${uniqueStocks.length || 5}
+  // Description headline: hot-issues uses the post's keyword/theme,
+  // featured-stocks uses the daily-market template
+  const headline = isHotIssues && hookTitle
+    ? `📈 ${hookTitle} 관련주 정리`
+    : `📈 ${monthDaySpaced} 시장을 주도한 핵심 종목 TOP ${uniqueStocks.length || 5}`;
+
+  // First line: direct link to the specific blog post (not just kstockflow.com).
+  // Viewers who tap "더 보기" land directly on the full analysis.
+  // #Shorts hashtag is in title for stronger Shorts auto-detection signal
+  const description = `🔥 전체 분석 보러가기 → ${postUrl}
+
+${headline}
 
 ${stocksLine}
 
-자세한 분석과 시장 전망은 블로그에서 확인하세요
-👉 https://kstockflow.com
+자세한 분석과 시장 전망은 위 링크에서 확인하세요
+👉 ${postUrl}
 
-#shorts #주식 #특징주 #급등주 #테마주 #한국주식 #${monthDay} ${uniqueStocks.map((s) => `#${s}`).join(" ")}
+#Shorts #주식 #특징주 #급등주 #테마주 #한국주식 #${monthDay} ${uniqueStocks.map((s) => `#${s}`).join(" ")}
 
 ⚠️ 본 영상은 정보 제공 목적이며, 투자 권유가 아닙니다. 투자의 책임은 본인에게 있습니다.`;
 

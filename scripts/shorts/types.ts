@@ -14,14 +14,16 @@ export interface ShortsInputData {
   readonly date: string;
   readonly title: string;
   readonly description: string;
+  readonly category: string;                        // "featured-stocks" | "hot-issues" | etc.
   readonly relatedStocks: readonly string[];
   readonly tags: readonly string[];
   readonly thumbnailPath: string | null;
-  readonly topStocks: readonly TopStock[];        // 섹터 leader Top 5 (body scenes용)
-  readonly allStocks: readonly TopStock[];         // 테이블 전체 (Loop scene용)
+  readonly topStocks: readonly TopStock[];          // 섹터 leader Top 5 (featured-stocks) / 관련주 (hot-issues)
+  readonly allStocks: readonly TopStock[];          // 테이블 전체 (loop scene용)
   readonly markPhrases: readonly string[];
   readonly sectorHeadings: readonly string[];
   readonly hookCandidates: readonly string[];
+  readonly hookSummary: string | null;              // hot-issues only: 핵심 요약 첫 2~3문장 (Hook narration 원천)
 }
 
 export interface TopStock {
@@ -132,6 +134,7 @@ export interface RenderScene {
   readonly priceHistory: readonly PricePoint[] | null;
   readonly mainBusiness: string | null;            // 종목 주요 사업 1줄
   readonly reason: string | null;                  // MDX 테이블 "상승이유" 컬럼 (chart 밑 표시)
+  readonly suppressStats: boolean;                 // hot-issues: hide giant % number (data drifts over time)
   readonly startFrame: number;
   readonly durationFrames: number;
   readonly ctaProps: CTAProps | null;

@@ -217,8 +217,15 @@ function escapeXml(s: string): string {
 }
 
 /**
- * Extract narration text per scene in pipeline order: hook, body[0..], cta.
- * Loop scene is intentionally skipped (영상 30초 이내 + 테이블 콘텐츠 제거 요청).
+ * Extract narration text per scene in pipeline order: hook, body[0..], loop?, cta.
+ *
+ * Loop scene is INCLUDED only if script.loop.narration is non-empty
+ * (hot-issues category populates it; featured-stocks leaves it empty,
+ *  preserving pre-2026-04-08 behavior where loop was dropped entirely).
+ *
+ * Ordering note: loop comes BEFORE cta so the viewer sees the full-stocks
+ * table and then hears the channel CTA as the closing message.
+ *
  * Order MUST match the segment order in assets.ts collectSegments().
  */
 function collectSceneTexts(script: ShortsScript): string[] {
@@ -227,9 +234,15 @@ function collectSceneTexts(script: ShortsScript): string[] {
   for (const scene of script.body) {
     texts.push(scene.narration);
   }
+  if (hasLoopScene(script)) {
+    texts.push(script.loop.narration);
+  }
   texts.push(script.cta.narration);
-  // Loop scene removed (사용자 요청: 30초 이내 + 테이블 짜르기)
   return texts;
+}
+
+export function hasLoopScene(script: ShortsScript): boolean {
+  return !!script.loop?.narration && script.loop.narration.trim().length > 0;
 }
 
 // ============================================================

@@ -15,6 +15,11 @@ interface Props {
  *  - Subtle hairline accent borders (instead of heavy 4px lines)
  */
 export const Letterbox: React.FC<Props> = ({ headerTitle, footerBrand, footerHint }) => {
+  // Header title auto-sizing: reduce font when 2+ lines are present (hot-issues)
+  const lineCount = headerTitle.split("\n").length;
+  const headerFontSize = lineCount >= 2 ? 64 : 78;
+  const headerGap = lineCount >= 2 ? 14 : 18;
+
   return (
     <AbsoluteFill style={{ pointerEvents: "none" }}>
       {/* ─── HEADER ─────────── */}
@@ -30,7 +35,7 @@ export const Letterbox: React.FC<Props> = ({ headerTitle, footerBrand, footerHin
           flexDirection: "column",
           alignItems: "center",
           justifyContent: "flex-end",
-          gap: 18,
+          gap: headerGap,
           padding: "0 60px 50px 60px",
           borderBottom: `1px solid ${COLORS.bgBorder}`,
         }}
@@ -49,12 +54,13 @@ export const Letterbox: React.FC<Props> = ({ headerTitle, footerBrand, footerHin
         <div
           style={{
             fontFamily: FONTS.heading,
-            fontSize: 78,
+            fontSize: headerFontSize,
             fontWeight: 900,
             color: COLORS.text,
             textAlign: "center",
             letterSpacing: -2,
-            lineHeight: 1.05,
+            lineHeight: 1.1,
+            whiteSpace: "pre-line", // render \n as line break
           }}
         >
           {headerTitle}

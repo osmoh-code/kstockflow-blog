@@ -65,6 +65,268 @@ export interface SectorLeader {
  * The first stock in "주요 종목:" is treated as that sector's leader.
  * Excludes the "주요 하락 테마" section (we only want gainers).
  */
+/**
+ * Extract the first 2~3 sentences from the "## {keyword} 핵심 요약" section
+ * (hot-issues posts). Used as the Hook narration for hot-issues shorts.
+ *
+ * Cleaning applied:
+ *   - Strip <mark>/<tag> markup
+ *   - Strip inline markdown ([text](url), **bold**, _italic_)
+ *   - Remove leading date prefix like "2026년 4월 1일,"
+ *   - Collapse whitespace
+ *
+ * Returns null if no 핵심 요약 section found.
+ */
+export function extractHookSummary(content: string, maxSentences = 2): string | null {
+  const lines = content.split("\n");
+  let inSection = false;
+  const paragraphs: string[] = [];
+  let current: string[] = [];
+
+  for (const rawLine of lines) {
+    const line = rawLine;
+    // Detect the section: "## ... 핵심 요약" or "## 핵심 요약"
+    if (line.startsWith("## ") && line.includes("핵심 요약")) {
+      inSection = true;
+      continue;
+    }
+    if (inSection && line.startsWith("## ")) {
+      // Next H2 ends the section
+      if (current.length > 0) paragraphs.push(current.join(" "));
+      break;
+    }
+    if (!inSection) continue;
+    if (line.trim() === "") {
+      if (current.length > 0) {
+        paragraphs.push(current.join(" "));
+        current = [];
+      }
+    } else {
+      current.push(line.trim());
+    }
+  }
+  if (current.length > 0) paragraphs.push(current.join(" "));
+
+  if (paragraphs.length === 0) return null;
+
+  // Clean first paragraph
+  const firstPara = paragraphs[0];
+  const cleaned = cleanInlineMarkdown(firstPara);
+  // Remove leading date prefix like "2026년 4월 1일," or "2026년 4월 1일"
+  const noDate = cleaned.replace(/^\d{4}년\s*\d{1,2}월\s*\d{1,2}일,?\s*/, "");
+
+  // Split into sentences at "다.", "요.", "다!", "요!" followed by space or end
+  const sentences = noDate
+    .split(/(?<=[다요][.!])\s+/)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0)
+    // Strip sentences mentioning market indices with specific %
+    // ("코스피 8% 급등", "코스닥도 6%대 상승") — these drift over time,
+    // hook content should focus on the underlying news trigger instead
+    .filter((s) => !/(코스피|코스닥|나스닥|다우|s&p)[^.]*?%/i.test(s));
+
+  if (sentences.length === 0) return null;
+
+  return sentences.slice(0, maxSentences).join(" ");
+}
+
+/**
+ * Extract per-stock descriptions from hot-issues "### N. 종목명" sections.
+ *
+ * Strategy:
+ *   1. Walk all paragraphs in each ### N. {stockName} section
+ *   2. Skip the first paragraph if it mentions a specific date/% (those are
+ *      time-sensitive — "4월 1일 +24.95% 급등" — and drift over time)
+ *   3. Take the FIRST paragraph that talks about the company's structural
+ *      strength / business / why it matters (the "evergreen" content)
+ *   4. Truncate to first 1~2 sentences, max ~140 chars
+ *
+ * Example for 대우건설:
+ *   ### 1. 대우건설
+ *   <table><figure>
+ *   대우건설은 이번 중동전쟁 종전 기대감 테마의 대장주입니다. 4월 1일 +24.95% 급등 ...  ← SKIP (date+%)
+ *   대우건설의 핵심 강점은 중동·북아프리카(MENA) 지역에서의 오랜 사업 경험입니다. 과거 ... ← PICK
+ *
+ * Returns a Map<stockName, description>.
+ */
+export function extractStockDescriptions(
+  content: string,
+  maxSentences = 2,
+  maxChars = 140,
+): Map<string, string> {
+  const descriptions = new Map<string, string>();
+  const lines = content.split("\n");
+
+  let currentStock: string | null = null;
+  let pendingParagraphs: string[][] = [];
+  let currentParagraph: string[] = [];
+
+  const flushSection = () => {
+    if (!currentStock) return;
+    if (currentParagraph.length > 0) {
+      pendingParagraphs.push(currentParagraph);
+      currentParagraph = [];
+    }
+    if (pendingParagraphs.length === 0) return;
+
+    // Find first "evergreen" paragraph: skip ones with date/% references
+    const isTimeSensitive = (text: string) =>
+      /\d{1,2}월\s*\d{1,2}일/.test(text) ||
+      /[+-]?\d+(?:\.\d+)?\s*%/.test(text) ||
+      /(\d+,?\d*)\s*원/.test(text); // also skip price quotes like "19,430원"
+
+    let chosen: string | null = null;
+    for (const paraLines of pendingParagraphs) {
+      const text = cleanInlineMarkdown(paraLines.join(" "));
+      if (text.length < 20) continue;
+      if (isTimeSensitive(text)) continue;
+      chosen = text;
+      break;
+    }
+    // Fallback: if all paragraphs are time-sensitive, just use the longest one
+    if (!chosen) {
+      const candidates = pendingParagraphs
+        .map((p) => cleanInlineMarkdown(p.join(" ")))
+        .filter((t) => t.length >= 20);
+      if (candidates.length > 0) {
+        chosen = candidates.sort((a, b) => b.length - a.length)[0];
+      }
+    }
+
+    if (chosen && !descriptions.has(currentStock)) {
+      const sentences = chosen
+        .split(/(?<=[다요][.!])\s+/)
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0);
+      const picked = sentences.slice(0, maxSentences).join(" ");
+      const truncated =
+        picked.length > maxChars ? picked.slice(0, maxChars).trim() + "…" : picked;
+      descriptions.set(currentStock, truncated);
+    }
+
+    pendingParagraphs = [];
+  };
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+
+    // Detect ### N. 종목명 heading (numbered stock section)
+    const headingMatch = /^###\s+\d+\.\s*(.+?)\s*$/.exec(line);
+    if (headingMatch) {
+      flushSection();
+      currentStock = headingMatch[1].trim();
+      pendingParagraphs = [];
+      currentParagraph = [];
+      continue;
+    }
+
+    // Stop at next H2 or H3 (non-numbered)
+    if (line.startsWith("## ") || (line.startsWith("### ") && !/^###\s+\d+\./.test(line))) {
+      flushSection();
+      currentStock = null;
+      continue;
+    }
+
+    if (!currentStock) continue;
+
+    // Empty line separates paragraphs
+    if (line === "") {
+      if (currentParagraph.length > 0) {
+        pendingParagraphs.push(currentParagraph);
+        currentParagraph = [];
+      }
+      continue;
+    }
+
+    // Skip tables, figures, blockquotes
+    if (line.startsWith("|") || line.startsWith("<") || line.startsWith(">")) {
+      if (currentParagraph.length > 0) {
+        pendingParagraphs.push(currentParagraph);
+        currentParagraph = [];
+      }
+      continue;
+    }
+
+    currentParagraph.push(line);
+  }
+  flushSection();
+
+  return descriptions;
+}
+
+/**
+ * Build a 2-line concise header title for hot-issues from the blog post title.
+ * Same logic as assets.ts buildHotIssuesHeaderTitle — exported here so script.ts
+ * can use it without a circular dependency on assets.ts.
+ *
+ * Returns a string with a single \n separator.
+ *
+ * Examples:
+ *   "중동전쟁 종전 기대감 건설주 관련주 TOP 7 | 대장주·..." → "중동전쟁 종전 기대감\n건설주 TOP 7"
+ *   "엔비디아 광통신 관련주 TOP 10 | ..."                    → "엔비디아\n광통신 TOP 10"
+ */
+export function buildHotIssuesHeaderTitle(title: string): string {
+  const beforePipe = title.split("|")[0].trim();
+  const topMatch = /TOP\s*(\d+)/i.exec(beforePipe);
+  const topSuffix = topMatch ? `TOP ${topMatch[1]}` : "";
+  const core = beforePipe
+    .replace(/TOP\s*\d+/gi, "")
+    .replace(/\s*수혜주\s*/g, " ")
+    .replace(/\s*테마주\s*/g, " ")
+    .replace(/\s*관련주\s*/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const words = core.split(/\s+/).filter((w) => w.length > 0);
+  if (words.length === 0) return title;
+
+  let anchor = -1;
+  for (let i = words.length - 1; i >= 0; i--) {
+    const w = words[i];
+    if (/주$/.test(w) && w.length >= 2 && !/(기대감|전망|분석|이슈|뉴스)주$/.test(w)) {
+      anchor = i;
+      break;
+    }
+  }
+  if (anchor < 0) anchor = Math.max(1, Math.ceil(words.length / 2));
+
+  if (anchor === 0 || words.length === 1) {
+    return topSuffix ? `${words.join(" ")} ${topSuffix}` : words.join(" ");
+  }
+
+  const line1 = words.slice(0, anchor).join(" ");
+  const line2Body = words.slice(anchor).join(" ");
+  const line2 = topSuffix ? `${line2Body} ${topSuffix}` : line2Body;
+  return `${line1}\n${line2}`;
+}
+
+/**
+ * Build the loop table title (e.g., "중동전쟁 종전 건설주 관련주 전체").
+ * Uses the same anchor logic as the header but joins to single line.
+ */
+export function buildHotIssuesLoopTitle(title: string): string {
+  const headerTwoLine = buildHotIssuesHeaderTitle(title);
+  // Take both lines, drop "TOP N" suffix, append "관련주 전체"
+  const flat = headerTwoLine.replace(/\n/g, " ").replace(/\s*TOP\s*\d+\s*$/i, "").trim();
+  return `${flat} 관련주 전체`;
+}
+
+/**
+ * Strip inline markdown and HTML tags, leaving plain text.
+ */
+function cleanInlineMarkdown(text: string): string {
+  return text
+    .replace(/<mark>([^<]*)<\/mark>/g, "$1")
+    .replace(/<[^>]+>/g, "")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/__([^_]+)__/g, "$1")
+    .replace(/\*([^*]+)\*/g, "$1")
+    .replace(/_([^_]+)_/g, "$1")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export function extractSectorLeaders(content: string): readonly SectorLeader[] {
   const lines = content.split("\n");
   const leaders: SectorLeader[] = [];

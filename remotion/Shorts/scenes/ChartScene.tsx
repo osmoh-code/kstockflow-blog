@@ -82,7 +82,9 @@ export const ChartScene: React.FC<Props> = ({ scene }) => {
               fontFamily: FONTS.body,
             }}
           >
-            ● 오늘의 강세주
+            {scene.suppressStats && scene.mainBusiness
+              ? `● ${scene.mainBusiness}`
+              : "● 오늘의 강세주"}
           </div>
           <div
             style={{
@@ -96,7 +98,9 @@ export const ChartScene: React.FC<Props> = ({ scene }) => {
           >
             {stockName}
           </div>
-          {(scene.mainBusiness || scene.stockData?.sector) && (
+          {/* mainBusiness label — only shown when suppressStats is FALSE
+              (in suppressStats mode the pill chip already shows the category) */}
+          {!scene.suppressStats && (scene.mainBusiness || scene.stockData?.sector) && (
             <div
               style={{
                 fontFamily: FONTS.body,
@@ -113,108 +117,121 @@ export const ChartScene: React.FC<Props> = ({ scene }) => {
           )}
         </div>
 
-        {/* Center: HUGE change percentage */}
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            marginTop: -8,
-            marginBottom: -8,
-          }}
-        >
-          <AnimatedNumber
-            value={Math.abs(changePercent)}
-            prefix={isUp ? "+" : "-"}
-            suffix="%"
-            color={lineColor}
-            fontSize={120}
-          />
-        </div>
-
-        {/* Candlestick chart with label */}
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            marginTop: 4,
-            gap: 8,
-          }}
-        >
+        {/* Center: HUGE change percentage — hidden when suppressStats
+            (hot-issues: live % drifts over time, so we avoid showing it) */}
+        {!scene.suppressStats && (
           <div
             style={{
-              alignSelf: "flex-start",
-              fontFamily: FONTS.body,
-              fontSize: 24,
-              fontWeight: 600,
-              color: COLORS.textMuted,
-              letterSpacing: 1,
-              textTransform: "uppercase",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              marginTop: -8,
+              marginBottom: -8,
             }}
           >
-            📊 20영업일 일봉
+            <AnimatedNumber
+              value={Math.abs(changePercent)}
+              prefix={isUp ? "+" : "-"}
+              suffix="%"
+              color={lineColor}
+              fontSize={120}
+            />
           </div>
-          <svg
-            width={CHART_WIDTH}
-            height={CHART_HEIGHT}
-            style={{ overflow: "visible" }}
-          >
-            {/* Grid lines */}
-            {[0.25, 0.5, 0.75].map((y) => (
-              <line
-                key={y}
-                x1={CHART_PADDING}
-                x2={CHART_WIDTH - CHART_PADDING}
-                y1={CHART_PADDING + (CHART_HEIGHT - CHART_PADDING * 2) * y}
-                y2={CHART_PADDING + (CHART_HEIGHT - CHART_PADDING * 2) * y}
-                stroke="rgba(255,255,255,0.06)"
-                strokeWidth={1}
-              />
-            ))}
-            <defs>
-              <clipPath id="revealClip">
-                <rect x={0} y={0} width={CHART_WIDTH * drawProgress} height={CHART_HEIGHT} />
-              </clipPath>
-            </defs>
-            <g clipPath="url(#revealClip)">
-              {candles.map((c, i) => (
-                <g key={i}>
-                  {/* Wick (high-low line) */}
-                  <line
-                    x1={c.x}
-                    x2={c.x}
-                    y1={c.yHigh}
-                    y2={c.yLow}
-                    stroke={c.color}
-                    strokeWidth={2}
-                  />
-                  {/* Body (open-close rect) */}
-                  <rect
-                    x={c.x - c.bodyWidth / 2}
-                    y={c.bodyTop}
-                    width={c.bodyWidth}
-                    height={Math.max(2, c.bodyHeight)}
-                    fill={c.color}
-                  />
-                </g>
-              ))}
-            </g>
-          </svg>
-        </div>
+        )}
 
-        {/* Bottom: reason */}
+        {/* Candlestick chart with label — HIDDEN when suppressStats
+            (hot-issues: post is read at varying times, chart data is outdated) */}
+        {!scene.suppressStats && (
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              marginTop: 4,
+              gap: 8,
+            }}
+          >
+            <div
+              style={{
+                alignSelf: "flex-start",
+                fontFamily: FONTS.body,
+                fontSize: 24,
+                fontWeight: 600,
+                color: COLORS.textMuted,
+                letterSpacing: 1,
+                textTransform: "uppercase",
+              }}
+            >
+              📊 20영업일 일봉
+            </div>
+            <svg
+              width={CHART_WIDTH}
+              height={CHART_HEIGHT}
+              style={{ overflow: "visible" }}
+            >
+              {/* Grid lines */}
+              {[0.25, 0.5, 0.75].map((y) => (
+                <line
+                  key={y}
+                  x1={CHART_PADDING}
+                  x2={CHART_WIDTH - CHART_PADDING}
+                  y1={CHART_PADDING + (CHART_HEIGHT - CHART_PADDING * 2) * y}
+                  y2={CHART_PADDING + (CHART_HEIGHT - CHART_PADDING * 2) * y}
+                  stroke="rgba(255,255,255,0.06)"
+                  strokeWidth={1}
+                />
+              ))}
+              <defs>
+                <clipPath id="revealClip">
+                  <rect x={0} y={0} width={CHART_WIDTH * drawProgress} height={CHART_HEIGHT} />
+                </clipPath>
+              </defs>
+              <g clipPath="url(#revealClip)">
+                {candles.map((c, i) => (
+                  <g key={i}>
+                    {/* Wick (high-low line) */}
+                    <line
+                      x1={c.x}
+                      x2={c.x}
+                      y1={c.yHigh}
+                      y2={c.yLow}
+                      stroke={c.color}
+                      strokeWidth={2}
+                    />
+                    {/* Body (open-close rect) */}
+                    <rect
+                      x={c.x - c.bodyWidth / 2}
+                      y={c.bodyTop}
+                      width={c.bodyWidth}
+                      height={Math.max(2, c.bodyHeight)}
+                      fill={c.color}
+                    />
+                  </g>
+                ))}
+              </g>
+            </svg>
+          </div>
+        )}
+
+        {/* Reason text — bigger and centered when suppressStats (hot-issues:
+            this fills the area where the chart used to be, becoming the
+            primary content explaining WHY the stock is related to the theme) */}
         <div
           style={{
             fontFamily: FONTS.body,
-            fontSize: FONT_SIZES.sceneSubtitle,
+            fontSize: scene.suppressStats ? 50 : FONT_SIZES.sceneSubtitle,
             color: COLORS.text,
-            fontWeight: 600,
-            textAlign: "center",
-            lineHeight: 1.3,
+            fontWeight: scene.suppressStats ? 500 : 600,
+            textAlign: scene.suppressStats ? "left" : "center",
+            lineHeight: scene.suppressStats ? 1.35 : 1.3,
             letterSpacing: -0.5,
             opacity: 0.95,
+            flex: scene.suppressStats ? 1 : "0 0 auto",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: scene.suppressStats ? "flex-start" : "center",
+            paddingTop: scene.suppressStats ? 16 : 0,
           }}
         >
           {reason}
