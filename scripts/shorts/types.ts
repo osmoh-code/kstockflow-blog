@@ -24,6 +24,7 @@ export interface ShortsInputData {
   readonly sectorHeadings: readonly string[];
   readonly hookCandidates: readonly string[];
   readonly hookSummary: string | null;              // hot-issues only: 핵심 요약 첫 2~3문장 (Hook narration 원천)
+  readonly headerTitleOverride: string | null;     // hot-issues only: frontmatter shorts_header_title — bypasses heuristic title builder when set ("\n" = forced line break)
 }
 
 export interface TopStock {
@@ -126,6 +127,7 @@ export interface ShortsAssets {
 
 export interface RenderScene {
   readonly type: SceneType;
+  readonly category: string;                       // "featured-stocks" | "hot-issues" — explicit so Remotion scenes branch on this rather than guessing from text shape
   readonly narration: string;
   readonly onScreenText: string;
   readonly visualDirection: string;

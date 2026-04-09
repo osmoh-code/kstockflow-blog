@@ -31,8 +31,10 @@ export const LoopScene: React.FC<Props> = ({ scene }) => {
   // Compact mode: when table has many rows OR suppressStats is on,
   // use smaller fonts/padding to fit everything within safe zone
   const compact = suppressStats || rows.length >= 7;
-  const titleFontSize = compact ? 56 : 72;
-  const tableTopOffset = compact ? 110 : 140;
+  // Hot-issues 헤더는 보통 2줄("미이란 2주 휴전\n중동 재건 관련주 전체")이므로
+  // 작은 폰트 + 충분한 top offset 으로 테이블과 겹치지 않게 함
+  const titleFontSize = compact ? 42 : 72;
+  const tableTopOffset = compact ? 175 : 140;
   const rowPaddingY = compact ? 10 : 18;
   const rowPaddingX = compact ? 24 : 28;
   const rowGap = compact ? 7 : 10;
@@ -60,7 +62,9 @@ export const LoopScene: React.FC<Props> = ({ scene }) => {
             color: COLORS.text,
             textShadow: SHADOWS.textHero,
             letterSpacing: -1,
-            lineHeight: 1.05,
+            lineHeight: 1.1,
+            whiteSpace: "pre-line",
+            wordBreak: "keep-all",
           }}
         >
           {title}

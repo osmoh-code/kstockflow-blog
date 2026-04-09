@@ -15,6 +15,16 @@ import fs from "node:fs";
 import path from "node:path";
 import { fetchDailyHistory, lookupStockCode, searchStockCode, syntheticHistory } from "./lib/stock-history";
 import { assetsJsonPath, ensureDir, pendingDir } from "./lib/shorts-paths";
+import {
+  FEATURED_SUPPRESS_STATS,
+  buildFeaturedLoopTableRows,
+  formatFeaturedHeaderTitle,
+} from "./featured/assets";
+import {
+  buildHotIssuesLoopTableRows,
+  resolveHotIssuesHeaderTitle,
+  shouldSuppressStatsForHotIssues,
+} from "./hot-issues/assets";
 import type {
   PricePoint,
   RenderScene,
@@ -25,7 +35,6 @@ import type {
   ShortsScript,
   StockSnapshot,
   TableRow,
-  TopStock,
   TTSResult,
 } from "./types";
 
@@ -109,29 +118,11 @@ export async function buildAssets(
   console.log(`      📊 실제 ${realCount}개 / fallback ${fallbackCount}개 / 코드없음 ${noCodeCount}개`);
 
   // 3. Build RenderScenes with frame-accurate timing
-  // Build table rows for Loop scene.
-  //   - hot-issues: show ALL stocks in original table order (up to 10)
-  //   - featured-stocks: show stocks not already covered in Body (legacy behavior)
+  // Loop table rows — delegated to category-specific helpers for clarity.
   const loopTableRows: TableRow[] =
     input.category === "hot-issues"
-      ? input.allStocks.slice(0, 10).map((s) => ({
-          name: s.name,
-          changePercent: s.changePercent,
-          sector: s.sector,
-        }))
-      : (() => {
-          const bodyStockNames = new Set(
-            script.body.map((s) => s.stockFocus).filter((n): n is string => n !== null),
-          );
-          return input.allStocks
-            .filter((s) => !bodyStockNames.has(s.name))
-            .slice(0, 8)
-            .map((s) => ({
-              name: s.name,
-              changePercent: s.changePercent,
-              sector: s.sector,
-            }));
-        })();
+      ? buildHotIssuesLoopTableRows(input.allStocks)
+      : buildFeaturedLoopTableRows(input.allStocks, script);
 
   const scenes: RenderScene[] = [];
   let cumulativeChars = 0;
@@ -161,14 +152,16 @@ export async function buildAssets(
     // Promote stock_card → chart when we have price history (Phase 2 chart)
     const sceneType: SceneType = seg.type === "stock_card" && priceHistory ? "chart" : seg.type;
 
-    // Hot-issues: suppress % display in body scenes AND loop table scene
-    // because the post may be read days later and the live % has drifted.
+    // suppressStats — delegated to category-specific rule so the logic for
+    // each category lives next to the rest of its assets code.
     const suppressStats =
-      input.category === "hot-issues" &&
-      (sceneType === "chart" || sceneType === "stock_card" || sceneType === "loop");
+      input.category === "hot-issues"
+        ? shouldSuppressStatsForHotIssues(sceneType)
+        : FEATURED_SUPPRESS_STATS;
 
     scenes.push({
       type: sceneType,
+      category: input.category, // explicit branch flag for Remotion scenes
       narration: seg.narration,
       onScreenText: seg.onScreenText,
       visualDirection: seg.visualDirection,
@@ -196,29 +189,39 @@ export async function buildAssets(
   const audioFilename = tts.audioPath.split(/[/\\]/).pop() ?? "";
 
   // BGM: copy from public/audio/{SHORTS_BGM_FILE} into pendingDir so Remotion's
-  // staticFile() can resolve it. SHORTS_BGM_FILE env var = "bgm.mp3" by default,
-  // can be overridden per-render (e.g. for A/B testing different tracks).
+  // staticFile() can resolve it. SHORTS_BGM_FILE env var picks a specific track;
+  // if unset we auto-pick the first existing file from a fallback list.
   // Set to "none" or empty to disable BGM entirely.
-  const bgmEnv = (process.env.SHORTS_BGM_FILE ?? "bgm.mp3").trim();
+  const BGM_FALLBACKS = ["bgm-1.mp3", "bgm-2.mp3", "bgm.mp3"] as const;
+  const bgmEnvRaw = (process.env.SHORTS_BGM_FILE ?? "").trim();
   let bgmSrc: string | null = null;
-  if (bgmEnv && bgmEnv !== "none") {
-    const bgmSourcePath = path.join(process.cwd(), "public", "audio", bgmEnv);
-    if (fs.existsSync(bgmSourcePath)) {
-      const bgmDestPath = path.join(pendingDir(input.slug), bgmEnv);
-      fs.copyFileSync(bgmSourcePath, bgmDestPath);
-      bgmSrc = bgmEnv;
-    } else {
-      console.log(`   ⚠️  BGM 파일 없음 (skip): ${bgmSourcePath}`);
+  if (bgmEnvRaw === "none") {
+    // explicitly disabled
+  } else {
+    const candidates = bgmEnvRaw ? [bgmEnvRaw] : BGM_FALLBACKS;
+    for (const candidate of candidates) {
+      const bgmSourcePath = path.join(process.cwd(), "public", "audio", candidate);
+      if (fs.existsSync(bgmSourcePath)) {
+        const bgmDestPath = path.join(pendingDir(input.slug), candidate);
+        fs.copyFileSync(bgmSourcePath, bgmDestPath);
+        bgmSrc = candidate;
+        console.log(`   🎵 BGM: ${candidate}`);
+        break;
+      }
+    }
+    if (!bgmSrc) {
+      console.log(`   ⚠️  BGM 파일 없음 (skip): public/audio/{${candidates.join(",")}}`);
     }
   }
   const bgmVolumeRaw = Number.parseFloat(process.env.SHORTS_BGM_VOLUME ?? "");
   const bgmVolume = Number.isFinite(bgmVolumeRaw) ? bgmVolumeRaw : 0.10;
 
-  // Header title: featured-stocks uses date, hot-issues uses shortened post title
+  // Header title — delegated to category helpers. hot-issues checks frontmatter
+  // override first internally; featured-stocks always uses the date-based title.
   const headerTitle =
     input.category === "hot-issues"
-      ? buildHotIssuesHeaderTitle(input.title)
-      : formatHeaderTitle(input.date);
+      ? resolveHotIssuesHeaderTitle(input)
+      : formatFeaturedHeaderTitle(input.date);
 
   const assets: ShortsAssets = {
     slug: input.slug,
@@ -325,88 +328,6 @@ function collectSegments(script: ShortsScript): Segment[] {
 
 function countKoreanChars(text: string): number {
   return text.replace(/\s/g, "").length;
-}
-
-function formatHeaderTitle(dateStr: string): string {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr.trim());
-  if (!m) return "오늘 주목해야 할 종목";
-  const month = parseInt(m[2], 10);
-  const day = parseInt(m[3], 10);
-  return `${month}월 ${day}일 주목해야 할 종목`;
-}
-
-/**
- * Build a 2-line header title for hot-issues from the blog post title.
- *
- * Returns a string with a single \n separator. The Letterbox component uses
- * whiteSpace: "pre-line" to render the newline and auto-reduces font size
- * when 2+ lines are present.
- *
- * Split strategy — context vs. stock-category noun:
- *   Line 1: context/keyword (theme, trigger, 기대감, etc.)
- *   Line 2: stock category + "TOP N"
- *
- * Split anchor priority:
- *   1. Last word ending in "주" (건설주, 방산주, 반도체주, 2차전지주 ...)
- *   2. Last non-trivial word before "관련주"
- *   3. Middle word (fallback)
- *
- * Examples:
- *   "중동전쟁 종전 기대감 건설주 관련주 TOP 7 | 대장주·수혜주·테마주 총정리"
- *     → "중동전쟁 종전 기대감\n건설주 TOP 7"
- *
- *   "엔비디아 광통신 관련주 TOP 10 | ..."
- *     → "엔비디아\n광통신 TOP 10"
- *
- *   "스테이블코인·에이전틱 AI 관련주 TOP 5 | ..."
- *     → "스테이블코인·에이전틱\nAI TOP 5"
- */
-function buildHotIssuesHeaderTitle(title: string): string {
-  // 1. Remove subtitle
-  const beforePipe = title.split("|")[0].trim();
-
-  // 2. Extract "TOP N" (keep separator so line 2 reads naturally)
-  const topMatch = /TOP\s*(\d+)/i.exec(beforePipe);
-  const topSuffix = topMatch ? `TOP ${topMatch[1]}` : "";
-
-  // 3. Strip "TOP N" and trailing "관련주"/"수혜주"/"테마주" from the core
-  const core = beforePipe
-    .replace(/TOP\s*\d+/gi, "")
-    .replace(/\s*수혜주\s*/g, " ")
-    .replace(/\s*테마주\s*/g, " ")
-    .replace(/\s*관련주\s*/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-
-  const words = core.split(/\s+/).filter((w) => w.length > 0);
-  if (words.length === 0) return title;
-
-  // 4. Find anchor — last word ending in "주" (stock category)
-  //    Exclude trivial matches (e.g., standalone "주" or "기대감주")
-  let anchor = -1;
-  for (let i = words.length - 1; i >= 0; i--) {
-    const w = words[i];
-    if (/주$/.test(w) && w.length >= 2 && !/(기대감|전망|분석|이슈|뉴스)주$/.test(w)) {
-      anchor = i;
-      break;
-    }
-  }
-
-  // 5. Fallback: split in the middle if no "주" anchor found
-  if (anchor < 0) {
-    anchor = Math.max(1, Math.ceil(words.length / 2));
-  }
-
-  // 6. Single-word edge case: don't split, return as-is with TOP suffix
-  if (anchor === 0 || words.length === 1) {
-    return topSuffix ? `${words.join(" ")} ${topSuffix}` : words.join(" ");
-  }
-
-  const line1 = words.slice(0, anchor).join(" ");
-  const line2Body = words.slice(anchor).join(" ");
-  const line2 = topSuffix ? `${line2Body} ${topSuffix}` : line2Body;
-
-  return `${line1}\n${line2}`;
 }
 
 /**

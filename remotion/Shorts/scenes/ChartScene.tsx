@@ -23,11 +23,11 @@ export const ChartScene: React.FC<Props> = ({ scene }) => {
   const enter = spring({
     frame,
     fps,
-    config: { damping: 18, stiffness: 140, mass: 0.7 },
-    durationInFrames: 14,
+    config: { damping: 18, stiffness: 180, mass: 0.6 },
+    durationInFrames: 8,
   });
-  const slideY = interpolate(enter, [0, 1], [60, 0]);
-  const opacity = interpolate(frame, [0, 8], [0, 1], { extrapolateRight: "clamp" });
+  const slideY = interpolate(enter, [0, 1], [40, 0]);
+  const opacity = interpolate(frame, [0, 4], [0, 1], { extrapolateRight: "clamp" });
 
   // Chart line draw animation (clip-path reveal)
   const drawProgress = interpolate(frame, [10, 28], [0, 1], {

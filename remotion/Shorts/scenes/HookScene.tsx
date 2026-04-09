@@ -29,12 +29,12 @@ export const HookScene: React.FC<Props> = ({ scene }) => {
   const slideY = interpolate(enter, [0, 1], [20, 0]); // smaller offset since no fade
   const opacity = 1;
 
-  // Hot-issues mode: detected when onScreenText contains a newline (2-line title)
-  // OR when narration is significantly longer than onScreenText.
-  // In this mode we render BOTH the title (prominent) AND the narration text below.
+  // Category branch is explicit via scene.category (set in assets.ts).
+  // Both featured-stocks AND hot-issues now use multi-line onScreenText, so
+  // we cannot infer category from "\n" presence anymore.
   const narration = scene.narration ?? "";
   const onScreen = scene.onScreenText ?? "";
-  const isHotIssues = onScreen.includes("\n") || narration.length > onScreen.length * 1.5;
+  const isHotIssues = scene.category === "hot-issues";
 
   if (!isHotIssues) {
     // ─── Featured-stocks layout: short impact text only ────────────
@@ -87,7 +87,9 @@ export const HookScene: React.FC<Props> = ({ scene }) => {
               color: COLORS.text,
               textShadow: SHADOWS.textHero,
               letterSpacing: -3.5,
-              lineHeight: 1.05,
+              lineHeight: 1.1,
+              whiteSpace: "pre-line", // honor "\n" for "4월 8일\n오늘의 주도주?"
+              wordBreak: "keep-all",
             }}
           >
             {onScreen}
@@ -101,7 +103,22 @@ export const HookScene: React.FC<Props> = ({ scene }) => {
   // Title is the 2-line "중동전쟁 종전 기대감 / 건설주 TOP 7"
   // Narration is the cleaned 핵심 요약 first sentence
   const titleLines = onScreen.split("\n").length;
-  const titleFontSize = titleLines >= 2 ? 80 : 92;
+  // Auto-fit title font size to the longest line so titles like
+  // "스테이블코인 에이전틱 AI 이슈" (15자) don't wrap awkwardly inside the 960px
+  // safe zone. Korean character width ≈ font size, so we cap at ~width/longest.
+  const longestLineLength = Math.max(
+    ...onScreen.split("\n").map((l) => l.length),
+  );
+  let titleFontSize: number;
+  if (longestLineLength <= 8) {
+    titleFontSize = titleLines >= 2 ? 88 : 100;
+  } else if (longestLineLength <= 11) {
+    titleFontSize = 80;
+  } else if (longestLineLength <= 14) {
+    titleFontSize = 66;
+  } else {
+    titleFontSize = 56;
+  }
   const narrationFontSize = narration.length > 75 ? 40 : 46;
 
   return (
@@ -158,6 +175,7 @@ export const HookScene: React.FC<Props> = ({ scene }) => {
             letterSpacing: -2.5,
             lineHeight: 1.1,
             whiteSpace: "pre-line",
+            wordBreak: "keep-all", // 한국어 단어 중간 끊김 방지 (이/슈 → 이슈)
           }}
         >
           {onScreen}

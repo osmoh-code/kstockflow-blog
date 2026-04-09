@@ -304,6 +304,122 @@ npx tsx scripts/generate-post.ts "키워드" --category hot-issues
 
 ---
 
+## YouTube Shorts 자동 생성 규칙 (반드시 준수)
+
+> 2026-04-08 사용자 검수 완료 포맷. **이 규칙을 임의로 변경하지 말 것.**
+> 매번 같은 글로 만들어도 통일된 쇼츠가 나와야 함.
+
+### 명령어
+
+```bash
+# 어떤 카테고리든 동일 명령
+npx tsx scripts/shorts/shorts-pipeline.ts <slug>
+
+# 업로드 (반드시 --privacy=private — 사용자가 검수 후 직접 공개)
+npx tsx scripts/shorts/upload.ts <slug> --privacy=private
+
+# 댓글 추가 + public 전환 (사용자가 검수 OK 후)
+npx tsx scripts/shorts/publish.ts <videoId> <slug>
+```
+
+### 디렉토리 구조 (분리됨 — 절대 섞지 말 것)
+
+```
+scripts/shorts/
+├── extract.ts / script.ts / assets.ts   ← router only (category로 dispatch)
+├── tts.ts / render.ts                    ← 공통 (분기 없음)
+├── featured/                             ← featured-stocks 전용
+│   ├── extract.ts (5-col table parser)
+│   ├── script.ts (Gemini hook + body)
+│   └── assets.ts (date header)
+└── hot-issues/                           ← hot-issues 전용
+    ├── extract.ts (3-col table + Gemini summary)
+    ├── script.ts (rule-based + 종목명 prefix)
+    └── assets.ts (Gemini header override 우선)
+```
+
+**규칙**: featured-stocks 수정은 `featured/` 안에서, hot-issues 수정은 `hot-issues/` 안에서. router 파일에 카테고리 specific 로직 박지 말 것.
+
+### featured-stocks 쇼츠 (매일 발행)
+
+**Hook (고정 — Gemini 결과 무시)**
+- narration: `"{N월 N일} 시장을 주도한 핵심종목 총정리"`
+- onScreenText: `"{N월 N일}\n오늘의 주도주?"` (2줄)
+- 날짜는 input.date에서 자동 추출 — 매일 글 따라 자동 변경
+- 변경 위치: `scripts/shorts/featured/script.ts` 하단 (`formatMonthDay` + force-fix)
+
+**Body (Gemini 자유 생성)**
+- 5개 섹터 leader (TOP_N_FEATURED=5)
+- 각 narration: `"{종목명} {등락률}% {동작}, {이유}"`
+- 차트 + 큰 % 숫자 표시 (suppressStats=false)
+
+**Letterbox header**: `"N월 N일 주목해야 할 종목"` (date-based)
+
+**Loop**: 본문에 안 나온 그 외 종목 8개 테이블
+
+### hot-issues 쇼츠 (테마별 발행)
+
+**Hook + Header (Gemini 자동 생성 — `summarize-hook.ts` one-shot)**
+- 한 번의 Gemini 호출로 hook narration + 2-line header 동시 생성
+- **개별 종목명 사용 절대 금지** (카카오페이/다날 등 회사명 NO → 일반명사 "결제 플랫폼주")
+- Header는 **글 제목 기반**으로 만들고, 2줄 = `{글 제목 키워드}{이슈/기대감/합의 등}\n관련주 TOP {실제 종목 수}`
+- TOP N의 N은 실제 렌더 종목 수 (TOP_N_HOT_ISSUES=7 cap, 6개 글이면 TOP 6)
+- 변경 위치: `scripts/shorts/lib/summarize-hook.ts` SYSTEM_PROMPT
+
+**Body (rule-based + Gemini summary)**
+- 최대 7개 종목 (TOP_N_HOT_ISSUES=7)
+- 각 narration: `"{종목명}{은/는} {Gemini 요약 ~50자}"`
+- 종목명 prefix는 자동 (받침 따라 은/는 자동 결정)
+- 차트/% 숨김 (suppressStats=true) — 글이 며칠 뒤 읽혀도 데이터 안 어긋남
+
+**Letterbox header**: Gemini 자동 생성 결과 사용 (frontmatter `shorts_header_title`이 있으면 그게 우선)
+
+**Loop**: 전체 관련주 10개 테이블 (compact mode)
+
+### Remotion 폰트 auto-fit (HookScene)
+
+- 글 제목 길이에 따라 폰트 크기 자동 조정
+- 8자 이하: 100/88px
+- 9~11자: 80px
+- 12~14자: 66px
+- 15자 이상: 56px
+- `wordBreak: keep-all` + `whiteSpace: pre-line` 적용 → 한국어 단어 중간 끊김 방지
+
+### BGM
+
+- 기본: `public/audio/bgm-1.mp3`
+- 환경변수 `SHORTS_BGM_FILE`로 override 가능
+- 자동 fallback 순서: bgm-1.mp3 → bgm-2.mp3 → bgm.mp3
+- "none" 또는 `SHORTS_BGM_FILE=none`이면 BGM 비활성화
+
+### 절대 금지 사항
+
+- **블로그 글 생성 프로세스(`scripts/lib/claude-prompt.ts`, `scripts/generate-post.ts`)는 절대 건드리지 말 것** — 글은 이미 완벽함. 쇼츠 통일성 문제는 반드시 `scripts/shorts/` 안에서만 해결.
+- featured-stocks의 hook narration/onScreenText 변경 금지 (사용자 승인 없이)
+- HookScene 분기 로직을 onScreenText의 `\n` 감지로 되돌리지 말 것 — `scene.category` 명시 분기 사용
+- assets.ts에 카테고리 specific 로직 직접 박지 말 것 — `featured/assets.ts` 또는 `hot-issues/assets.ts`로 위임
+- TypeScript 검증: `tsconfig.json`이 `scripts/`를 exclude하므로 수동 호출 필요:
+  ```bash
+  npx tsc --noEmit --target ES2020 --module esnext --moduleResolution bundler --esModuleInterop --strict --skipLibCheck --allowJs scripts/shorts/extract.ts scripts/shorts/script.ts scripts/shorts/assets.ts scripts/shorts/shorts-pipeline.ts
+  ```
+
+### 회귀 테스트 (변경 후 반드시 실행)
+
+두 기준 슬러그로 풀 파이프라인 재생성:
+```bash
+# featured-stocks 기준
+rm -rf dist/shorts/pending/2026-04-08-featured-stocks
+npx tsx scripts/shorts/shorts-pipeline.ts 2026-04-08-featured-stocks
+
+# hot-issues 기준
+rm -rf dist/shorts/pending/2026-04-08-us-iran-ceasefire-construction
+npx tsx scripts/shorts/shorts-pipeline.ts 2026-04-08-us-iran-ceasefire-construction
+```
+
+mp4가 60초 이내 생성, BGM 들어있고, hook/header가 위 규칙대로 나오면 OK.
+
+---
+
 ## 빌드 & 배포
 
 ```bash

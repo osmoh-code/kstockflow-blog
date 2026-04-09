@@ -109,8 +109,26 @@ export function extractHookSummary(content: string, maxSentences = 2): string | 
 
   if (paragraphs.length === 0) return null;
 
-  // Clean first paragraph
-  const firstPara = paragraphs[0];
+  // Skip "meta" paragraphs (rhetorical questions, intro/navigation copy)
+  // and pick the first paragraph that describes actual events/facts.
+  // Examples to skip:
+  //   "...진짜 수혜주가 어디인지 판단하기 어려우신가요?"
+  //   "이 글에서는 ... 분석하여, 투자자들이 판단할 수 있도록 도움을 드리겠습니다."
+  //   "테마주 특성상 단기 급등 후 급락 위험이 크고..."
+  const META_PATTERNS: RegExp[] = [
+    /\?\s*$/,
+    /어려우신가요/,
+    /혼란이 가중/,
+    /도움을 드리/,
+    /이 글에서/,
+    /분석하여/,
+    /선별해/,
+    /특성상/,
+    /투자자들의 혼란/,
+    /명확한 판단/,
+  ];
+  const isMeta = (p: string): boolean => META_PATTERNS.some((re) => re.test(p));
+  const firstPara = paragraphs.find((p) => !isMeta(p)) ?? paragraphs[0];
   const cleaned = cleanInlineMarkdown(firstPara);
   // Remove leading date prefix like "2026년 4월 1일," or "2026년 4월 1일"
   const noDate = cleaned.replace(/^\d{4}년\s*\d{1,2}월\s*\d{1,2}일,?\s*/, "");
@@ -128,6 +146,46 @@ export function extractHookSummary(content: string, maxSentences = 2): string | 
   if (sentences.length === 0) return null;
 
   return sentences.slice(0, maxSentences).join(" ");
+}
+
+/**
+ * Extract the FULL "## ... 핵심 요약" section as a single cleaned text block,
+ * including all paragraphs (meta + factual). Used as input for Gemini-based
+ * 1-sentence summarization in extract.ts (hot-issues branch).
+ *
+ * Returns null if the section is not found.
+ */
+export function extractHookSection(content: string): string | null {
+  const lines = content.split("\n");
+  let inSection = false;
+  const paragraphs: string[] = [];
+  let current: string[] = [];
+
+  for (const rawLine of lines) {
+    const line = rawLine;
+    if (line.startsWith("## ") && line.includes("핵심 요약")) {
+      inSection = true;
+      continue;
+    }
+    if (inSection && line.startsWith("## ")) {
+      if (current.length > 0) paragraphs.push(current.join(" "));
+      break;
+    }
+    if (!inSection) continue;
+    if (line.trim() === "") {
+      if (current.length > 0) {
+        paragraphs.push(current.join(" "));
+        current = [];
+      }
+    } else {
+      current.push(line.trim());
+    }
+  }
+  if (current.length > 0) paragraphs.push(current.join(" "));
+
+  if (paragraphs.length === 0) return null;
+
+  return paragraphs.map((p) => cleanInlineMarkdown(p)).join("\n\n");
 }
 
 /**
@@ -264,32 +322,68 @@ export function extractStockDescriptions(
  * Examples:
  *   "중동전쟁 종전 기대감 건설주 관련주 TOP 7 | 대장주·..." → "중동전쟁 종전 기대감\n건설주 TOP 7"
  *   "엔비디아 광통신 관련주 TOP 10 | ..."                    → "엔비디아\n광통신 TOP 10"
+ *   "미·이란 2주 휴전 속, 중동 재건 관련주 TOP 12 | ..."     → "미이란 2주 휴전\n중동 재건 TOP 7"
+ *     (with actualStockCount=7)
+ *
+ * @param actualStockCount  If provided, overrides "TOP N" in the title with the
+ *                          actual rendered stock count (since TOP_N_HOT_ISSUES
+ *                          may cap below the post's full list).
  */
-export function buildHotIssuesHeaderTitle(title: string): string {
+export function buildHotIssuesHeaderTitle(title: string, actualStockCount?: number): string {
   const beforePipe = title.split("|")[0].trim();
-  const topMatch = /TOP\s*(\d+)/i.exec(beforePipe);
-  const topSuffix = topMatch ? `TOP ${topMatch[1]}` : "";
+  const topInTitle = /TOP\s*(\d+)/i.exec(beforePipe);
+  const topNum = actualStockCount ?? (topInTitle ? parseInt(topInTitle[1], 10) : null);
+  const topSuffix = topNum ? `TOP ${topNum}` : "";
+
   const core = beforePipe
     .replace(/TOP\s*\d+/gi, "")
     .replace(/\s*수혜주\s*/g, " ")
     .replace(/\s*테마주\s*/g, " ")
     .replace(/\s*관련주\s*/g, " ")
+    // Visual cleanup: middle dot → space ("미·이란" → "미 이란"), strip commas
+    .replace(/·/g, " ")
+    .replace(/,/g, "")
     .replace(/\s+/g, " ")
     .trim();
+
   const words = core.split(/\s+/).filter((w) => w.length > 0);
   if (words.length === 0) return title;
 
+  // Anchor strategy:
+  //  1) Prefer the position right after an event word ("휴전", "합의", ...) so
+  //     the first line carries the trigger and the second line carries the topic.
+  //     If a positional particle ("속", "안", "내") follows, include it in line1.
+  //  2) Else fall back to a "...주" suffix word (industry/theme marker), but
+  //     skip numeric units like "2주" (week count).
+  //  3) Else split roughly in the middle.
   let anchor = -1;
-  for (let i = words.length - 1; i >= 0; i--) {
-    const w = words[i];
-    if (/주$/.test(w) && w.length >= 2 && !/(기대감|전망|분석|이슈|뉴스)주$/.test(w)) {
-      anchor = i;
+  for (let i = 0; i < words.length; i++) {
+    if (/(휴전|합의|발표|계약|체결|선언|결정|급등|돌파|폭등|폭락|착공|개시|시작|종전)$/.test(words[i])) {
+      anchor = i + 1;
+      // Pull positional particle into line1 ("휴전 속" stays together)
+      if (anchor < words.length && /^(속|안|내|중|후)$/.test(words[anchor])) {
+        anchor += 1;
+      }
       break;
+    }
+  }
+  if (anchor < 0) {
+    for (let i = words.length - 1; i >= 0; i--) {
+      const w = words[i];
+      if (
+        /주$/.test(w) &&
+        w.length >= 2 &&
+        !/(기대감|전망|분석|이슈|뉴스)주$/.test(w) &&
+        !/^\d+주$/.test(w) // skip "2주", "3주" (week units)
+      ) {
+        anchor = i;
+        break;
+      }
     }
   }
   if (anchor < 0) anchor = Math.max(1, Math.ceil(words.length / 2));
 
-  if (anchor === 0 || words.length === 1) {
+  if (anchor === 0 || anchor >= words.length || words.length === 1) {
     return topSuffix ? `${words.join(" ")} ${topSuffix}` : words.join(" ");
   }
 

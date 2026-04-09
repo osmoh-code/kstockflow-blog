@@ -1,21 +1,26 @@
 /**
- * Naver Finance daily candle fetcher.
+ * Naver Finance daily candle fetcher (NXT-integrated).
  *
- * Endpoint: https://api.finance.naver.com/siseJson.naver
- *   ?symbol={code}     6-digit Korean stock code
- *   &requestType=1     daily
- *   &count=30          last 30 days
- *   &timeframe=day
+ * Endpoint (2026-04-08 변경):
+ *   https://api.stock.naver.com/chart/domestic/item/{code}/day
+ *     ?startDateTime=YYYYMMDD&endDateTime=YYYYMMDD
  *
- * Response is non-standard JSON: an array of arrays.
- * First row is the header: ['날짜', '시가', '고가', '저가', '종가', '거래량', '외국인소진율']
- * Subsequent rows are data: [20260101, 1000, 1100, 980, 1050, 12345, 30.5]
+ * Response: JSON array of objects:
+ *   [{ localDate, openPrice, highPrice, lowPrice, closePrice, accumulatedTradingVolume, foreignRetentionRate }, ...]
+ *
+ * Why this endpoint over the old fchart.stock.naver.com:
+ *   - fchart는 KRX 거래만 반영하는 차트를 반환 (NXT 거래 종목은 부정확)
+ *   - api.stock.naver.com는 m.stock.naver.com과 동일한 NXT+KRX 통합 OHLC 반환
+ *   - 통합 데이터로 거래량/거래대금이 정확하며, NXT 거래되는 종목의 candle도 정확
+ *
+ * 검증: 대우건설 047040 4월 8일 closePrice 22550, accumulatedTradingVolume 90,625,704 →
+ *       integration API와 정확히 일치 (NXT 통합 데이터 확인)
  */
 
 import type { PricePoint, TopStock } from "../types";
 
-// Naver Finance fchart endpoint — XML, EUC-KR, returns OHLC
-const BASE_URL = "https://fchart.stock.naver.com/sise.nhn";
+// Naver Finance api endpoint — JSON, NXT 통합 OHLC
+const BASE_URL = "https://api.stock.naver.com/chart/domestic/item";
 const TIMEOUT_MS = 10_000;
 
 export interface FetchHistoryOptions {
@@ -25,13 +30,21 @@ export interface FetchHistoryOptions {
 /**
  * Fetch daily OHLC history for a stock by 6-digit code (last 20 trading days by default).
  * Returns null on any failure (caller should fall back to synthetic data).
+ *
+ * NXT-integrated source: api.stock.naver.com (m.stock.naver.com 모바일 차트와 동일한 데이터)
  */
 export async function fetchDailyHistory(
   code: string,
   opts: FetchHistoryOptions = {},
 ): Promise<readonly PricePoint[] | null> {
   const count = opts.count ?? 20;
-  const url = `${BASE_URL}?symbol=${encodeURIComponent(code)}&timeframe=day&count=${count}&requestType=0`;
+  // Compute date range — fetch ~2x count days to handle weekends/holidays, then slice
+  const today = new Date();
+  const startDate = new Date(today);
+  startDate.setDate(today.getDate() - count * 2);
+  const fmt = (d: Date) =>
+    `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
+  const url = `${BASE_URL}/${encodeURIComponent(code)}/day?startDateTime=${fmt(startDate)}&endDateTime=${fmt(today)}`;
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
@@ -40,20 +53,41 @@ export async function fetchDailyHistory(
       signal: controller.signal,
       headers: {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Referer": "https://finance.naver.com/",
-        "Accept": "*/*",
+        "Referer": "https://m.stock.naver.com/",
+        "Accept": "application/json",
       },
     });
     if (!res.ok) {
       console.log(`      ❌ ${code}: HTTP ${res.status}`);
       return null;
     }
-    const text = await res.text();
-    const parsed = parseFchartXml(text);
-    if (!parsed) {
-      console.log(`      ❌ ${code}: parse 실패 (응답 ${text.length} bytes)`);
+    const json = (await res.json()) as Array<{
+      localDate: string;
+      openPrice: number;
+      highPrice: number;
+      lowPrice: number;
+      closePrice: number;
+      accumulatedTradingVolume?: number;
+    }>;
+    if (!Array.isArray(json) || json.length === 0) {
+      console.log(`      ❌ ${code}: 응답이 배열이 아니거나 빈 배열`);
+      return null;
     }
-    return parsed;
+    // Parse + slice to last `count` days
+    const points: PricePoint[] = json
+      .map((row) => {
+        const ds = String(row.localDate);
+        if (!ds || ds.length !== 8) return null;
+        return {
+          date: `${ds.slice(0, 4)}-${ds.slice(4, 6)}-${ds.slice(6, 8)}`,
+          open: row.openPrice,
+          high: row.highPrice,
+          low: row.lowPrice,
+          close: row.closePrice,
+        } satisfies PricePoint;
+      })
+      .filter((p): p is PricePoint => p !== null);
+    return points.slice(-count);
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     console.log(`      ❌ ${code}: ${msg}`);
@@ -63,84 +97,8 @@ export async function fetchDailyHistory(
   }
 }
 
-/**
- * Parse Naver fchart XML response.
- *
- * Format:
- *   <protocol>
- *     <chartdata symbol="064260" name="..." count="20" ...>
- *       <item data="20260311|7510|7720|7330|7500|1834381" />
- *       <item data="YYYYMMDD|open|high|low|close|volume" />
- *       ...
- *     </chartdata>
- *   </protocol>
- */
-function parseFchartXml(xml: string): readonly PricePoint[] | null {
-  try {
-    const itemRegex = /<item\s+data="([^"]+)"\s*\/>/g;
-    const points: PricePoint[] = [];
-    let match: RegExpExecArray | null;
-    while ((match = itemRegex.exec(xml)) !== null) {
-      const parts = match[1].split("|");
-      if (parts.length < 5) continue;
-      const dateStr = parts[0];
-      const open = parseFloat(parts[1]);
-      const high = parseFloat(parts[2]);
-      const low = parseFloat(parts[3]);
-      const close = parseFloat(parts[4]);
-      if (dateStr.length !== 8 || isNaN(open) || isNaN(high) || isNaN(low) || isNaN(close)) {
-        continue;
-      }
-      const formatted = `${dateStr.slice(0, 4)}-${dateStr.slice(4, 6)}-${dateStr.slice(6, 8)}`;
-      points.push({ date: formatted, open, high, low, close });
-    }
-    return points.length > 0 ? points : null;
-  } catch {
-    return null;
-  }
-}
-
-function parseSiseJson(raw: string): readonly PricePoint[] | null {
-  try {
-    // Naver returns malformed JSON-ish text. Clean trailing commas.
-    const cleaned = raw
-      .replace(/,\s*]/g, "]")
-      .replace(/,\s*}/g, "}")
-      .trim();
-    const parsed = JSON.parse(cleaned) as unknown;
-    if (!Array.isArray(parsed) || parsed.length < 2) return null;
-
-    // First row is header: ['날짜', '시가', '고가', '저가', '종가', '거래량', '외국인소진율']
-    const rows = parsed.slice(1);
-    const points: PricePoint[] = [];
-    for (const row of rows) {
-      if (!Array.isArray(row) || row.length < 5) continue;
-      const dateNum = row[0];
-      const open = row[1];
-      const high = row[2];
-      const low = row[3];
-      const close = row[4];
-      if (
-        typeof dateNum !== "number" ||
-        typeof open !== "number" ||
-        typeof high !== "number" ||
-        typeof low !== "number" ||
-        typeof close !== "number"
-      ) {
-        continue;
-      }
-
-      // 20260106 → "2026-01-06"
-      const dateStr = String(dateNum);
-      if (dateStr.length !== 8) continue;
-      const formatted = `${dateStr.slice(0, 4)}-${dateStr.slice(4, 6)}-${dateStr.slice(6, 8)}`;
-      points.push({ date: formatted, open, high, low, close });
-    }
-    return points.length > 0 ? points : null;
-  } catch {
-    return null;
-  }
-}
+// (Legacy parseFchartXml + parseSiseJson removed — replaced by inline JSON
+//  parsing in fetchDailyHistory which uses the NXT-integrated api.stock.naver.com endpoint.)
 
 /**
  * Synthesize fake OHLC history from a stock's current changePercent.

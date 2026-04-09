@@ -353,7 +353,7 @@ function buildMdx(
 
   let body = post.content;
 
-  // 특징주 테이블의 거래대금을 실제 네이버 금융 데이터로 교체
+  // 특징주 테이블의 거래대금을 실제 네이버 금융 데이터로 교체 + 거래대금 내림차순 정렬
   if (body.includes("오늘의 특징주 한눈에 보기")) {
     // 1순위: stockInfoList (Claude relatedStocks 기반 상세 시세)
     // 2순위: featuredTradeMap (HTML 사전 추출 전체 종목 — 상한가 종목 등 커버)
@@ -368,7 +368,7 @@ function buildMdx(
         stockTradeMap.set(s.name, s.tradeAmount); // stockInfoList가 더 정확 → 덮어씀
       }
     }
-    // 테이블 각 행에서 종목명 매칭 → 거래대금 열 교체
+    // 1단계: 테이블 각 행에서 종목명 매칭 → 거래대금 열 교체
     const tableRowRegex = /^\| ([^\|]+?) \| ([^\|]+?) \| ([^\|]+?) \| ([^\|]+?) \| ([^\|]+?) \|$/gm;
     let missingRows: string[] = [];
     body = body.replace(tableRowRegex, (match, name, sector, reason, change, tradeAmt) => {
@@ -387,6 +387,9 @@ function buildMdx(
     if (missingRows.length > 0) {
       console.warn(`⚠️ 거래대금 누락 종목 ${missingRows.length}개: ${missingRows.join(", ")} (HTML 파싱 또는 API 조회 실패)`);
     }
+
+    // 2단계: 테이블 전체를 거래대금 내림차순으로 재정렬 (Claude의 인-consistent 정렬 보정)
+    body = sortFeaturedStocksTableByTradeDesc(body);
   }
 
   // Hot-issues: replace 등락률/거래대금 in the 5-column 구분 table with
@@ -460,6 +463,46 @@ function parseTradeAmountEok(raw: string): number {
   const numMatch = /^(\d+(?:\.\d+)?)/.exec(clean);
   if (numMatch) return parseFloat(numMatch[1]);
   return -1;
+}
+
+/**
+ * Sort the featured-stocks summary table by 거래대금 descending.
+ * Header: | 종목명 | 주요섹터 | 상승이유 | 등락률 | 거래대금 |
+ *
+ * Claude doesn't always sort consistently — sometimes by 등락률 desc, sometimes
+ * by 거래대금 desc. Force 거래대금 desc for consistency with hot-issues and to
+ * match the user's preference (objectively meaningful = real money flow).
+ */
+function sortFeaturedStocksTableByTradeDesc(body: string): string {
+  const tableRegex =
+    /(\|\s*종목명\s*\|\s*주요섹터\s*\|\s*상승이유\s*\|\s*등락률\s*\|\s*거래대금\s*\|\s*\n\|[-:\s|]+\|\s*\n)((?:\|[^\n]*\|\s*\n)+)/;
+  const match = tableRegex.exec(body);
+  if (!match) return body;
+
+  const [fullMatch, header, dataBlock] = match;
+  const dataRows = dataBlock.trim().split("\n");
+
+  interface Row {
+    line: string;
+    tradeNum: number;
+  }
+  const parsed: Row[] = [];
+  for (const line of dataRows) {
+    const cells = line.split("|").slice(1, -1).map((c) => c.trim());
+    if (cells.length < 5) continue;
+    const tradeAmt = cells[4];
+    parsed.push({ line, tradeNum: parseTradeAmountEok(tradeAmt) });
+  }
+
+  parsed.sort((a, b) => {
+    if (a.tradeNum === b.tradeNum) return 0;
+    if (a.tradeNum === -1) return 1;
+    if (b.tradeNum === -1) return -1;
+    return b.tradeNum - a.tradeNum;
+  });
+
+  const newRows = parsed.map((r) => r.line).join("\n");
+  return body.replace(fullMatch, `${header}${newRows}\n`);
 }
 
 /**
