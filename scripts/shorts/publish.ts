@@ -6,12 +6,11 @@
  *   slug:    blog post slug (e.g. "2026-04-07-featured-stocks") — used to
  *            derive both the date for the comment and the post URL link.
  *
- * Hot-issues vs featured-stocks comment template:
- *   We load script.json from approved/{slug}/ to detect category.
- *   If hook.onScreenText contains a newline (the 2-line "{theme}\n{category} TOP N"
- *   format used only by hot-issues), we use the keyword-based comment template
- *   ("📈 중동전쟁 종전 기대감 건설주 TOP 7 전체 분석 보기").
- *   Otherwise we fall back to the date-based template ("📈 4월 7일 전체 분석 보기").
+ * Category routing (matches upload.ts and extract.ts):
+ *   Detect category from the post's frontmatter, then dispatch to the
+ *   per-category first-comment builder:
+ *     featured-stocks → featured/upload-meta.ts → date-based comment
+ *     hot-issues      → hot-issues/upload-meta.ts → keyword/theme comment
  *
  * Backwards compat: if the second arg is a bare YYYY-MM-DD (no full slug),
  * we treat it as the legacy date-only mode and link to https://kstockflow.com.
@@ -21,7 +20,12 @@ import path from "node:path";
 import { google } from "googleapis";
 import { createAuthenticatedClient } from "./lib/youtube-oauth";
 import { extractFrameToJpg, uploadVideoThumbnail } from "./lib/thumbnail";
-import { buildFirstCommentText, buildPostUrl } from "./upload";
+import { buildPostUrl } from "./upload";
+import { loadPost } from "./lib/load-post";
+import { scriptJsonPath, approvedDir } from "./lib/shorts-paths";
+import { buildFeaturedStocksFirstComment } from "./featured/upload-meta";
+import { buildHotIssuesFirstComment } from "./hot-issues/upload-meta";
+import type { ShortsScript } from "./types";
 
 // Load .env.local
 if (fs.existsSync(".env.local")) {
@@ -31,25 +35,36 @@ if (fs.existsSync(".env.local")) {
   }
 }
 
+type ShortsCategory = "featured-stocks" | "hot-issues";
+
 /**
- * Detect hot-issues by reading script.json from approved/{slug}/ and checking
- * whether hook.onScreenText is a multi-line title (only hot-issues uses that).
- * Returns the joined title for hot-issues, null otherwise.
+ * Detect the shorts category from the post's frontmatter `category` field.
+ * This is the same pattern used by upload.ts and extract.ts so routing
+ * stays consistent. Defaults to "hot-issues" for legacy posts.
  */
-function detectHotIssuesTitle(slug: string): string | null {
+function detectCategory(slug: string): ShortsCategory {
+  try {
+    const post = loadPost(slug);
+    const raw = String(post.data.category ?? "hot-issues");
+    return raw === "featured-stocks" ? "featured-stocks" : "hot-issues";
+  } catch {
+    return "hot-issues";
+  }
+}
+
+/**
+ * Load the generated script.json for a slug, preferring approved/ then pending/.
+ * Returns null if no script file is found.
+ */
+function loadShortsScript(slug: string): ShortsScript | null {
   const candidates = [
-    path.join("dist", "shorts", "approved", slug, `${slug}.script.json`),
-    path.join("dist", "shorts", "pending", slug, `${slug}.script.json`),
+    path.join(approvedDir(slug), `${slug}.script.json`),
+    scriptJsonPath(slug),
   ];
   for (const p of candidates) {
     if (!fs.existsSync(p)) continue;
     try {
-      const script = JSON.parse(fs.readFileSync(p, "utf-8"));
-      const onScreen = script?.hook?.onScreenText;
-      if (typeof onScreen === "string" && onScreen.includes("\n")) {
-        return onScreen.replace(/\n/g, " ").trim();
-      }
-      return null;
+      return JSON.parse(fs.readFileSync(p, "utf-8")) as ShortsScript;
     } catch {
       continue;
     }
@@ -73,9 +88,9 @@ async function main() {
     console.error("slug must start with YYYY-MM-DD");
     process.exit(1);
   }
-  const monthDay = `${parseInt(dateMatch[2], 10)}월 ${parseInt(dateMatch[3], 10)}일`;
   const postUrl = isBareDate ? "https://kstockflow.com" : buildPostUrl(slug);
-  const hotIssuesTitle = isBareDate ? null : detectHotIssuesTitle(slug);
+  const category: ShortsCategory = isBareDate ? "featured-stocks" : detectCategory(slug);
+  const script = isBareDate ? null : loadShortsScript(slug);
 
   const auth = createAuthenticatedClient();
   const youtube = google.youtube({ version: "v3", auth });
@@ -114,9 +129,14 @@ async function main() {
   }
 
   // 3. Post first comment with direct post link.
-  // Hot-issues uses keyword title, featured-stocks uses date-based template.
-  console.log(`💬 첫 댓글 추가 중... (${hotIssuesTitle ? "hot-issues" : "featured/legacy"} 모드)`);
-  const text = buildFirstCommentText(monthDay, postUrl, hotIssuesTitle);
+  // Category-specific template is delegated to the per-category upload-meta module.
+  // Note: parseSlugDate inside the builders only needs the leading YYYY-MM-DD,
+  // so passing the bare date through as the "slug" works for the legacy path.
+  console.log(`💬 첫 댓글 추가 중... (${category} 모드)`);
+  const text =
+    category === "hot-issues"
+      ? buildHotIssuesFirstComment(script, postUrl)
+      : buildFeaturedStocksFirstComment(slug, postUrl);
 
   try {
     await youtube.commentThreads.insert({

@@ -20,7 +20,18 @@ import { google } from "googleapis";
 import { createAuthenticatedClient } from "./lib/youtube-oauth";
 import { approvedDir, mp4Path, pendingDir, scriptJsonPath } from "./lib/shorts-paths";
 import { extractFrameToJpg, uploadVideoThumbnail } from "./lib/thumbnail";
+import { loadPost } from "./lib/load-post";
+import {
+  buildFeaturedStocksMetadata,
+  buildFeaturedStocksFirstComment,
+} from "./featured/upload-meta";
+import {
+  buildHotIssuesMetadata,
+  buildHotIssuesFirstComment,
+} from "./hot-issues/upload-meta";
 import type { ShortsScript } from "./types";
+
+type ShortsCategory = "featured-stocks" | "hot-issues";
 
 type Privacy = "public" | "unlisted" | "private";
 
@@ -59,7 +70,16 @@ export async function uploadShort(slug: string, opts: UploadOpts = {}): Promise<
   const scriptPath = path.join(baseDir, `${slug}.script.json`);
   const fallbackScriptPath = scriptJsonPath(slug);
   const script = loadScript(scriptPath, fallbackScriptPath);
-  const { title, description, tags } = buildMetadata(slug, script);
+
+  // Detect category from frontmatter (authoritative — same pattern as extract.ts
+  // router). Never derive category from slug suffix; hot-issues slugs may end
+  // in "-stocks" per the SEO slug rule.
+  const category = detectCategory(slug);
+  const postUrl = buildPostUrl(slug);
+  const { title, description, tags } =
+    category === "hot-issues"
+      ? buildHotIssuesMetadata(slug, script, postUrl)
+      : buildFeaturedStocksMetadata(slug, script, postUrl);
 
   console.log(`   📝 제목: ${title}`);
   console.log(`   🏷️  태그: ${tags.slice(0, 5).join(", ")}${tags.length > 5 ? "..." : ""}`);
@@ -80,7 +100,7 @@ export async function uploadShort(slug: string, opts: UploadOpts = {}): Promise<
       snippet: {
         title,
         description,
-        tags,
+        tags: [...tags],
         categoryId: "25", // News & Politics
         defaultLanguage: "ko",
         defaultAudioLanguage: "ko",
@@ -122,19 +142,14 @@ export async function uploadShort(slug: string, opts: UploadOpts = {}): Promise<
     console.log(`   ⏭️  썸네일 업로드 건너뜀 (YouTube 자동 픽 사용 — SHORTS_THUMBNAIL_FRAME 설정 시 활성화)`);
   }
 
-  // 6. Auto-post first comment with direct link to the blog post
-  // Hot-issues uses keyword title, featured-stocks uses date-based template
-  const hotIssuesTitleForComment = script?.hook?.onScreenText?.includes("\n")
-    ? script.hook.onScreenText.replace(/\n/g, " ").trim()
-    : null;
+  // 6. Auto-post first comment with direct link to the blog post.
+  // Category-specific template is delegated to the per-category upload-meta module.
+  const firstComment =
+    category === "hot-issues"
+      ? buildHotIssuesFirstComment(script, postUrl)
+      : buildFeaturedStocksFirstComment(slug, postUrl);
   try {
-    await postFirstComment(
-      youtube,
-      videoId,
-      monthDayFromSlug(slug),
-      buildPostUrl(slug),
-      hotIssuesTitleForComment,
-    );
+    await postFirstComment(youtube, videoId, firstComment);
     console.log(`   💬 첫 댓글 자동 추가 완료 (수동으로 핀 고정 권장)`);
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -149,20 +164,27 @@ export async function uploadShort(slug: string, opts: UploadOpts = {}): Promise<
   };
 }
 
-function monthDayFromSlug(slug: string): string {
-  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(slug);
-  return m ? `${parseInt(m[2], 10)}월 ${parseInt(m[3], 10)}일` : "오늘";
+/**
+ * Detect the shorts category from the post's frontmatter `category` field.
+ * This is the same dispatch pattern used by scripts/shorts/extract.ts so that
+ * upload/metadata routing cannot disagree with extract/script/assets routing.
+ * Defaults to "hot-issues" for legacy posts without a category field.
+ */
+function detectCategory(slug: string): ShortsCategory {
+  try {
+    const post = loadPost(slug);
+    const raw = String(post.data.category ?? "hot-issues");
+    return raw === "featured-stocks" ? "featured-stocks" : "hot-issues";
+  } catch {
+    return "hot-issues";
+  }
 }
 
 async function postFirstComment(
   youtube: ReturnType<typeof google.youtube>,
   videoId: string,
-  monthDay: string,
-  postUrl: string,
-  hotIssuesTitle: string | null,
+  text: string,
 ): Promise<void> {
-  const text = buildFirstCommentText(monthDay, postUrl, hotIssuesTitle);
-
   await youtube.commentThreads.insert({
     part: ["snippet"],
     requestBody: {
@@ -206,106 +228,6 @@ export function buildPostUrl(slug: string): string {
   return `https://kstockflow.com/posts/${slug}/`;
 }
 
-/**
- * Build the first-comment text for a YouTube Short.
- *
- * - For featured-stocks (hotIssuesTitle === null), uses the date-based template
- *   ("📈 4월 7일 전체 분석 보기")
- * - For hot-issues (hotIssuesTitle provided), uses the keyword/theme template
- *   ("📈 중동전쟁 종전 기대감 건설주 TOP 7 전체 분석 보기")
- *
- * Both formats include the direct post URL so viewers don't have to search.
- */
-export function buildFirstCommentText(
-  monthDay: string,
-  postUrl: string,
-  hotIssuesTitle: string | null,
-): string {
-  if (hotIssuesTitle && hotIssuesTitle.length > 0) {
-    return `📈 ${hotIssuesTitle} 전체 분석 보기
-
-👉 ${postUrl}
-
-K주식핫이슈에서 자세한 내용 확인 ✅`;
-  }
-  return `📈 ${monthDay} 전체 분석 보기
-
-👉 ${postUrl}
-
-K주식핫이슈에서 매일 업데이트됩니다 ✅`;
-}
-
-function buildMetadata(
-  slug: string,
-  script: ShortsScript | null,
-): { title: string; description: string; tags: string[] } {
-  // Extract date from slug (e.g., "2026-04-06-featured-stocks" → "4월6일")
-  const dateMatch = /^(\d{4})-(\d{2})-(\d{2})/.exec(slug);
-  const monthDay = dateMatch ? `${parseInt(dateMatch[2], 10)}월${parseInt(dateMatch[3], 10)}일` : "오늘";
-  const monthDaySpaced = dateMatch ? `${parseInt(dateMatch[2], 10)}월 ${parseInt(dateMatch[3], 10)}일` : "오늘";
-
-  // Extract stock names from body for tags
-  const stockNames: string[] = [];
-  if (script?.body) {
-    for (const scene of script.body) {
-      if (scene.stockFocus) stockNames.push(scene.stockFocus);
-    }
-  }
-  const uniqueStocks = Array.from(new Set(stockNames));
-
-  const isHotIssues = slug.match(/-stocks$/) === null && !slug.endsWith("-featured-stocks");
-  // Hot-issues: derive title from script.hook.onScreenText (2-line summarized title
-  // like "중동전쟁 종전 기대감\n건설주 TOP 7"), joined into a single searchable line
-  const hookTitle = script?.hook?.onScreenText?.includes("\n")
-    ? script.hook.onScreenText.replace(/\n/g, " ").trim()
-    : null;
-  // YouTube Shorts auto-classification: append "#Shorts" to title as the
-  // strongest signal that this is a vertical short video
-  const baseTitle = isHotIssues
-    ? hookTitle ?? `${monthDaySpaced} ${uniqueStocks[0] ?? ""} 관련 주도주 정리`.trim()
-    : `${monthDay} 시장 주도주 급등주 테마주 정리`;
-  const title = `${baseTitle} #Shorts`;
-
-  const postUrl = buildPostUrl(slug);
-  const stocksLine = uniqueStocks.length > 0 ? uniqueStocks.join(", ") : "오늘의 강세 종목";
-
-  // Description headline: hot-issues uses the post's keyword/theme,
-  // featured-stocks uses the daily-market template
-  const headline = isHotIssues && hookTitle
-    ? `📈 ${hookTitle} 관련주 정리`
-    : `📈 ${monthDaySpaced} 시장을 주도한 핵심 종목 TOP ${uniqueStocks.length || 5}`;
-
-  // First line: direct link to the specific blog post (not just kstockflow.com).
-  // Viewers who tap "더 보기" land directly on the full analysis.
-  // #Shorts hashtag is in title for stronger Shorts auto-detection signal
-  const description = `🔥 전체 분석 보러가기 → ${postUrl}
-
-${headline}
-
-${stocksLine}
-
-자세한 분석과 시장 전망은 위 링크에서 확인하세요
-👉 ${postUrl}
-
-#Shorts #주식 #특징주 #급등주 #테마주 #한국주식 #${monthDay} ${uniqueStocks.map((s) => `#${s}`).join(" ")}
-
-⚠️ 본 영상은 정보 제공 목적이며, 투자 권유가 아닙니다. 투자의 책임은 본인에게 있습니다.`;
-
-  const tags = [
-    "주식",
-    "특징주",
-    "급등주",
-    "테마주",
-    "주도주",
-    "한국주식",
-    "shorts",
-    "K주식핫이슈",
-    monthDay,
-    ...uniqueStocks,
-  ];
-
-  return { title, description, tags };
-}
 
 // ============================================================
 // CLI entry
