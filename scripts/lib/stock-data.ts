@@ -146,6 +146,22 @@ export async function searchStockCode(stockName: string): Promise<string | null>
     }
   }
 
+  // 4. 네이버 자동완성 API fallback (영문명, 약칭 등 KRX 목록에 없는 종목 대응)
+  try {
+    const acUrl = `https://ac.stock.naver.com/ac?q=${encodeURIComponent(stockName)}&target=stock`;
+    const acRes = await fetch(acUrl, {
+      headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" },
+    });
+    if (acRes.ok) {
+      const acJson = await acRes.json();
+      if (acJson.items?.length > 0) {
+        const item = acJson.items[0];
+        console.log(`  🔍 네이버 자동완성: "${stockName}" → "${item.name}" (${item.code})`);
+        return item.code;
+      }
+    }
+  } catch { /* skip */ }
+
   return null;
 }
 
