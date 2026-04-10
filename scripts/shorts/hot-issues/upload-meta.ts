@@ -31,9 +31,10 @@ export function buildHotIssuesMetadata(
 
   // Prefer the Gemini hook title. Fall back to a stock-based template
   // only when the hook is missing (e.g. legacy posts without onScreenText).
-  const baseTitle =
+  // 제목에 #Shorts 넣지 않음 — YouTube는 이미 9:16 + 60초 이하로 Shorts 자동 분류하므로
+  // 해시태그는 제목 공간만 먹고 SEO 키워드 밀도를 낮춤. description의 #Shorts로 충분함.
+  const title =
     hookTitle ?? `${monthDaySpaced} ${uniqueStocks[0] ?? ""} 관련 주도주 정리`.trim();
-  const title = `${baseTitle} #Shorts`;
 
   const stocksLine = uniqueStocks.length > 0 ? uniqueStocks.join(", ") : "오늘의 강세 종목";
   const headline = hookTitle

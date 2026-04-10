@@ -388,8 +388,8 @@ function buildMdx(
       console.warn(`⚠️ 거래대금 누락 종목 ${missingRows.length}개: ${missingRows.join(", ")} (HTML 파싱 또는 API 조회 실패)`);
     }
 
-    // 2단계: 테이블 전체를 거래대금 내림차순으로 재정렬 (Claude의 인-consistent 정렬 보정)
-    body = sortFeaturedStocksTableByTradeDesc(body);
+    // 2단계: 테이블 전체를 등락률 내림차순으로 재정렬
+    body = sortFeaturedStocksTableByChangeDesc(body);
   }
 
   // Hot-issues: replace 등락률/거래대금 in the 5-column 구분 table with
@@ -466,14 +466,10 @@ function parseTradeAmountEok(raw: string): number {
 }
 
 /**
- * Sort the featured-stocks summary table by 거래대금 descending.
+ * Sort the featured-stocks summary table by 등락률 descending.
  * Header: | 종목명 | 주요섹터 | 상승이유 | 등락률 | 거래대금 |
- *
- * Claude doesn't always sort consistently — sometimes by 등락률 desc, sometimes
- * by 거래대금 desc. Force 거래대금 desc for consistency with hot-issues and to
- * match the user's preference (objectively meaningful = real money flow).
  */
-function sortFeaturedStocksTableByTradeDesc(body: string): string {
+function sortFeaturedStocksTableByChangeDesc(body: string): string {
   const tableRegex =
     /(\|\s*종목명\s*\|\s*주요섹터\s*\|\s*상승이유\s*\|\s*등락률\s*\|\s*거래대금\s*\|\s*\n\|[-:\s|]+\|\s*\n)((?:\|[^\n]*\|\s*\n)+)/;
   const match = tableRegex.exec(body);
@@ -484,22 +480,18 @@ function sortFeaturedStocksTableByTradeDesc(body: string): string {
 
   interface Row {
     line: string;
-    tradeNum: number;
+    changePercent: number;
   }
   const parsed: Row[] = [];
   for (const line of dataRows) {
     const cells = line.split("|").slice(1, -1).map((c) => c.trim());
     if (cells.length < 5) continue;
-    const tradeAmt = cells[4];
-    parsed.push({ line, tradeNum: parseTradeAmountEok(tradeAmt) });
+    const changeStr = cells[3]; // 등락률 column
+    const pctMatch = /([+-]?\d+(?:\.\d+)?)%/.exec(changeStr);
+    parsed.push({ line, changePercent: pctMatch ? parseFloat(pctMatch[1]) : -999 });
   }
 
-  parsed.sort((a, b) => {
-    if (a.tradeNum === b.tradeNum) return 0;
-    if (a.tradeNum === -1) return 1;
-    if (b.tradeNum === -1) return -1;
-    return b.tradeNum - a.tradeNum;
-  });
+  parsed.sort((a, b) => b.changePercent - a.changePercent);
 
   const newRows = parsed.map((r) => r.line).join("\n");
   return body.replace(fullMatch, `${header}${newRows}\n`);

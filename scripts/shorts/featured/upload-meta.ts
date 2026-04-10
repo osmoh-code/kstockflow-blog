@@ -27,8 +27,9 @@ export function buildFeaturedStocksMetadata(
   const { monthDay, monthDaySpaced } = parseSlugDate(slug);
   const uniqueStocks = collectStockNames(script);
 
-  const baseTitle = `${monthDay} 시장 주도주 급등주 테마주 정리`;
-  const title = `${baseTitle} #Shorts`;
+  // 제목에 #Shorts 넣지 않음 — YouTube는 이미 9:16 + 60초 이하로 Shorts 자동 분류하므로
+  // 해시태그는 제목 공간만 먹고 SEO 키워드 밀도를 낮춤. description의 #Shorts로 충분함.
+  const title = `${monthDay} 시장 주도주 급등주 테마주 정리`;
 
   const stocksLine = uniqueStocks.length > 0 ? uniqueStocks.join(", ") : "오늘의 강세 종목";
   const headline = `📈 ${monthDaySpaced} 시장을 주도한 핵심 종목 TOP ${uniqueStocks.length || 5}`;
