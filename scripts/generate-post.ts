@@ -753,13 +753,15 @@ async function main(): Promise<void> {
     ipoData = await fetch38Data(ipoUrl);
   }
 
-  // featured-stocks: HTML에서 종목코드 추출 → 거래대금 사전 조회
+  // featured-stocks: HTML에서 종목코드+등락률 추출 → 거래대금만 API 조회
   let featuredTradeContext = "";
   const featuredTradeMap = new Map<string, string>(); // 종목명 → 거래대금 (후처리 교체용)
   if (categoryOverride === "featured-stocks") {
     const featuredDir = path.join(process.cwd(), "특징주");
     if (fs.existsSync(featuredDir)) {
       const codeNameMap = new Map<string, string>();
+      // HTML에서 종목별 등락률 추출 (API 등락률보다 HTML이 우선 — 장후/야간거래로 API 데이터 변동 방지)
+      const htmlPctMap = new Map<string, number>(); // code → 등락률(%)
       const htmlFiles = fs.readdirSync(featuredDir).filter((f) => f.endsWith(".html"));
       for (const htmlFile of htmlFiles) {
         const filePath = path.join(featuredDir, htmlFile);
@@ -774,54 +776,76 @@ async function main(): Promise<void> {
           while ((m = codeRegex.exec(html)) !== null) {
             const code = m[1];
             const name = m[2].replace(/<[^>]+>/g, "").trim();
-            if (name && code && !/^\d+$/.test(name)) codeNameMap.set(code, name);
+            if (name && code && !/^\d+$/.test(name)) {
+              codeNameMap.set(code, name);
+              // 종목 링크 이후 500자 내에서 등락률 추출
+              const after = html.substring(m.index, m.index + 500);
+              const pctMatch = after.match(/([+-]?\d+\.\d+)%/);
+              if (pctMatch) {
+                const pct = parseFloat(pctMatch[1]);
+                // 더 높은 등락률 우선 (같은 종목이 여러 HTML에 있을 수 있음)
+                const existing = htmlPctMap.get(code);
+                if (existing === undefined || pct > existing) {
+                  htmlPctMap.set(code, pct);
+                }
+              }
+            }
           }
         } catch { /* skip */ }
       }
       if (codeNameMap.size > 0) {
-        console.log(`\n💰 특징주 HTML에서 ${codeNameMap.size}개 종목코드 추출 → 거래대금 사전 조회`);
-        const tradeEntries: { name: string; code: string; amount: number; display: string; changePercent: string; isUp: boolean }[] = [];
+        console.log(`\n💰 특징주 HTML에서 ${codeNameMap.size}개 종목코드 추출 (등락률 ${htmlPctMap.size}개) → 거래대금 API 조회`);
+        const tradeEntries: { name: string; code: string; amount: number; display: string; changePercent: string; pctNum: number; isUp: boolean }[] = [];
         const BATCH = 3;
         const entries = [...codeNameMap.entries()];
         for (let i = 0; i < entries.length; i += BATCH) {
           const batch = entries.slice(i, i + BATCH);
           await Promise.all(batch.map(async ([code, name]) => {
             try {
-              // 1) integration API로 거래대금(KRX+NXT 합산) + 등락률
               const integUrl = `https://m.stock.naver.com/api/stock/${code}/integration`;
               const integRes = await fetch(integUrl, {
                 headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" },
               });
               if (!integRes.ok) return;
               const integStr = await integRes.text();
-              // 등락률
-              const changeMatch = integStr.match(/"fluctuationsRatio":"([^"]+)"/);
-              const comparePriceMatch = integStr.match(/"compareToPreviousPrice":\{[^}]*"code":"(\d)"/);
-              const isUp = comparePriceMatch ? comparePriceMatch[1] === "2" : false; // 2=상승
-              const pctRaw = changeMatch?.[1] ?? "0";
-              const changePercent = isUp ? `+${pctRaw}%` : `-${pctRaw}%`;
-              // 거래대금
+              // 등락률: HTML 우선, HTML에 없으면 API 사용
+              let pctNum: number;
+              let changePercent: string;
+              let isUp: boolean;
+              const htmlPct = htmlPctMap.get(code);
+              if (htmlPct !== undefined) {
+                pctNum = htmlPct;
+                isUp = htmlPct > 0;
+                changePercent = htmlPct > 0 ? `+${htmlPct.toFixed(2)}%` : `${htmlPct.toFixed(2)}%`;
+              } else {
+                const changeMatch = integStr.match(/"fluctuationsRatio":"([^"]+)"/);
+                const comparePriceMatch = integStr.match(/"compareToPreviousPrice":\{[^}]*"code":"(\d)"/);
+                isUp = comparePriceMatch ? comparePriceMatch[1] === "2" : false;
+                const pctRaw = changeMatch?.[1] ?? "0";
+                pctNum = isUp ? parseFloat(pctRaw) : -parseFloat(pctRaw);
+                changePercent = isUp ? `+${pctRaw}%` : `-${pctRaw}%`;
+              }
+              // 거래대금은 항상 API 사용
               const tradeMatch = integStr.match(/accumulatedTradingValue[^}]*?value":"([0-9,]+)백만"/);
               if (tradeMatch) {
                 const million = parseInt(tradeMatch[1].replace(/,/g, ""), 10);
                 const eok = Math.round(million / 100);
                 const display = eok >= 1000 ? `${eok.toLocaleString()}억원` : `${eok}억원`;
-                tradeEntries.push({ name, code, amount: eok, display, changePercent, isUp });
+                tradeEntries.push({ name, code, amount: eok, display, changePercent, pctNum, isUp });
               }
             } catch { /* skip */ }
           }));
           if (i + BATCH < entries.length) await new Promise((r) => setTimeout(r, 200));
         }
-        // 상승 종목만 필터 → 거래대금 순 정렬
-        const upEntries = tradeEntries.filter((e) => e.isUp).sort((a, b) => b.amount - a.amount);
-        featuredTradeContext = "\n\n## 상승 종목 거래대금 데이터 (네이버 금융 실제 데이터)\n";
-        featuredTradeContext += "거래대금이 큰 상승 종목은 시장 주도주이므로 테이블에 반드시 포함하세요. 하락 종목은 테이블에 넣지 마세요.\n\n";
+        // 상승 종목만 필터 → 등락률 순 정렬 (가장 많이 오른 종목이 먼저)
+        const upEntries = tradeEntries.filter((e) => e.isUp).sort((a, b) => b.pctNum - a.pctNum);
+        featuredTradeContext = "\n\n## 상승 종목 시세 데이터 (HTML 등락률 + 네이버 거래대금)\n";
+        featuredTradeContext += "등락률이 높은 상승 종목은 시장 주도주이므로 테이블에 반드시 포함하세요. 하락 종목은 테이블에 넣지 마세요.\n\n";
         for (const e of upEntries) {
           featuredTradeContext += `- ${e.name}(${e.code}): 등락률 ${e.changePercent}, 거래대금 ${e.display}\n`;
-          // 후처리 테이블 교체용 맵에도 저장 (Claude relatedStocks에 없어도 교체되도록)
           featuredTradeMap.set(e.name, e.display);
         }
-        console.log(`  ✅ ${tradeEntries.length}개 중 상승 ${upEntries.length}개 거래대금 조회 완료 (상위: ${upEntries.slice(0, 5).map(e => `${e.name} ${e.display}`).join(", ")})`);
+        console.log(`  ✅ ${tradeEntries.length}개 중 상승 ${upEntries.length}개 조회 완료 (상위: ${upEntries.slice(0, 5).map(e => `${e.name} ${e.changePercent} ${e.display}`).join(", ")})`);
       }
     }
   }
