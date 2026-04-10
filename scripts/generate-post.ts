@@ -353,7 +353,7 @@ function buildMdx(
 
   let body = post.content;
 
-  // 특징주 테이블의 거래대금을 실제 네이버 금융 데이터로 교체 + 거래대금 내림차순 정렬
+  // 특징주 테이블의 거래대금을 실제 네이버 금융 데이터로 교체 + 등락률 내림차순 정렬
   if (body.includes("오늘의 특징주 한눈에 보기")) {
     // 1순위: stockInfoList (Claude relatedStocks 기반 상세 시세)
     // 2순위: featuredTradeMap (HTML 사전 추출 전체 종목 — 상한가 종목 등 커버)

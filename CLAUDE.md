@@ -244,17 +244,23 @@ npx tsx scripts/generate-post.ts "키워드" --category hot-issues
 - `scripts/data/YYYY-MM-DD-featured-stocks.md` 파일도 자동 탐지
 - Google 뉴스 RSS로 최신 뉴스 자동 검색
 
-### 거래대금 데이터 플로우 (반드시 이해할 것)
+### 시세 데이터 플로우 (반드시 이해할 것)
 
-1. **HTML에서 종목코드 추출** → 네이버 모바일 integration API로 거래대금 사전 조회
-2. 결과는 `featuredTradeMap` (종목명 → 거래대금)에 저장
-3. Claude는 이 데이터를 컨텍스트로 받아 테이블 작성
-4. **후처리 단계에서 테이블 거래대금을 `featuredTradeMap` + `stockInfoList` 기반으로 재교체**
+**등락률과 거래대금은 서로 다른 소스에서 가져온다:**
+
+1. **등락률**: HTML 파일에서 직접 추출 (우선) → 없으면 `/basic` API fallback
+   - HTML 종목 링크 이후 500자 내 `([+-]?\d+\.\d+)%` 패턴 매칭
+   - fallback: `m.stock.naver.com/api/stock/{code}/basic` → `fluctuationsRatio` 필드
+   - **`/integration` API의 `fluctuationsRatio`는 동종업체(industryCompareInfo) 데이터이므로 절대 사용 금지**
+2. **거래대금**: `/integration` API → `accumulatedTradingValue` (KRX+NXT 합산)
+3. 결과는 `featuredTradeMap` (종목명 → 거래대금)에 저장, 등락률과 함께 Claude 컨텍스트에 전달
+4. Claude가 테이블 작성 후, **후처리에서 거래대금을 `featuredTradeMap` + `stockInfoList` 기반으로 재교체**
    - 1순위: `stockInfoList` (Claude relatedStocks의 상세 시세)
    - 2순위: `featuredTradeMap` (HTML 사전 추출 전체 종목 — 상한가 종목 커버)
-5. 후처리에서도 교체 실패한 행은 `-억원`으로 남음 → **validate-seo.ts에서 빌드 에러로 차단됨**
+5. **후처리에서 등락률 내림차순 재정렬** (`sortFeaturedStocksTableByChangeDesc`)
+6. 거래대금 교체 실패한 행은 `-억원`으로 남음 → **validate-seo.ts에서 빌드 에러로 차단됨**
 
-이 플로우가 깨지면(정규식 미일치, API 호출 실패 등) 상한가 종목의 거래대금이 누락된다. 과거 2026-04-06에 HTML 6 정규식 불일치로 풍산홀딩스·CS가 누락된 사례 있음.
+과거 2026-04-06에 HTML 6 정규식 불일치로 풍산홀딩스·CS가 누락된 사례 있음.
 
 ### 글 구조 (고정)
 
