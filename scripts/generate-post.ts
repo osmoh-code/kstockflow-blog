@@ -802,30 +802,40 @@ async function main(): Promise<void> {
           const batch = entries.slice(i, i + BATCH);
           await Promise.all(batch.map(async ([code, name]) => {
             try {
-              const integUrl = `https://m.stock.naver.com/api/stock/${code}/integration`;
-              const integRes = await fetch(integUrl, {
-                headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" },
-              });
-              if (!integRes.ok) return;
-              const integStr = await integRes.text();
-              // 등락률: HTML 우선, HTML에 없으면 API 사용
+              const ua = { headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" } };
+              // 1) /basic API → 정확한 등락률 (integration API의 fluctuationsRatio는 동종업체 데이터라 잘못됨)
               let pctNum: number;
               let changePercent: string;
               let isUp: boolean;
               const htmlPct = htmlPctMap.get(code);
               if (htmlPct !== undefined) {
+                // HTML 등락률 우선
                 pctNum = htmlPct;
                 isUp = htmlPct > 0;
                 changePercent = htmlPct > 0 ? `+${htmlPct.toFixed(2)}%` : `${htmlPct.toFixed(2)}%`;
               } else {
-                const changeMatch = integStr.match(/"fluctuationsRatio":"([^"]+)"/);
-                const comparePriceMatch = integStr.match(/"compareToPreviousPrice":\{[^}]*"code":"(\d)"/);
-                isUp = comparePriceMatch ? comparePriceMatch[1] === "2" : false;
-                const pctRaw = changeMatch?.[1] ?? "0";
-                pctNum = isUp ? parseFloat(pctRaw) : -parseFloat(pctRaw);
-                changePercent = isUp ? `+${pctRaw}%` : `-${pctRaw}%`;
+                // HTML에 없으면 /basic API에서 정확한 등락률 조회
+                const basicUrl = `https://m.stock.naver.com/api/stock/${code}/basic`;
+                const basicRes = await fetch(basicUrl, ua);
+                if (basicRes.ok) {
+                  const basicJson = await basicRes.json();
+                  const ratio = parseFloat(basicJson.fluctuationsRatio ?? "0");
+                  const priceCode = basicJson.compareToPreviousPrice?.code;
+                  // code: "1"=상한, "2"=상승, "3"=보합, "4"=하한, "5"=하락
+                  isUp = priceCode === "1" || priceCode === "2";
+                  pctNum = isUp ? Math.abs(ratio) : -Math.abs(ratio);
+                  changePercent = isUp ? `+${Math.abs(ratio).toFixed(2)}%` : `-${Math.abs(ratio).toFixed(2)}%`;
+                } else {
+                  pctNum = 0;
+                  isUp = false;
+                  changePercent = "0%";
+                }
               }
-              // 거래대금은 항상 API 사용
+              // 2) /integration API → 거래대금 (KRX+NXT 합산)
+              const integUrl = `https://m.stock.naver.com/api/stock/${code}/integration`;
+              const integRes = await fetch(integUrl, ua);
+              if (!integRes.ok) return;
+              const integStr = await integRes.text();
               const tradeMatch = integStr.match(/accumulatedTradingValue[^}]*?value":"([0-9,]+)백만"/);
               if (tradeMatch) {
                 const million = parseInt(tradeMatch[1].replace(/,/g, ""), 10);
