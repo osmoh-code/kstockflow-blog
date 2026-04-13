@@ -223,6 +223,15 @@ export async function buildAssets(
       ? resolveHotIssuesHeaderTitle(input)
       : formatFeaturedHeaderTitle(input.date);
 
+  // Date badge for hot-issues (top-right corner): "N월 N일"
+  let dateBadge: string | null = null;
+  if (input.category === "hot-issues" && input.date) {
+    const dm = /^(\d{4})-(\d{2})-(\d{2})$/.exec(input.date.trim());
+    if (dm) {
+      dateBadge = `${parseInt(dm[2], 10)}월 ${parseInt(dm[3], 10)}일`;
+    }
+  }
+
   const assets: ShortsAssets = {
     slug: input.slug,
     audioSrc: audioFilename,
@@ -234,6 +243,7 @@ export async function buildAssets(
     headerTitle,
     footerBrand: "K주식핫이슈",
     footerHint: "프로필 → 전체 분석",
+    dateBadge,
   };
 
   ensureDir(pendingDir(input.slug));
@@ -306,10 +316,11 @@ function collectSegments(script: ShortsScript): Segment[] {
     });
   }
 
-  // CTA (final scene)
+  // CTA (final scene) — append fixed subscribe line after Gemini narration
+  const ctaNarration = `${script.cta.narration} 매일 장 마감 후 업로드! 좋아요와 구독 부탁드립니다.`;
   segments.push({
     type: "cta",
-    narration: script.cta.narration,
+    narration: ctaNarration,
     onScreenText: script.cta.onScreenText,
     visualDirection: script.cta.visualDirection,
     emphasisWords: [script.cta.brandName],
@@ -320,7 +331,7 @@ function collectSegments(script: ShortsScript): Segment[] {
       siteUrl: script.cta.siteUrl,
       arrowDirection: script.cta.arrowDirection,
     },
-    charCount: countKoreanChars(script.cta.narration),
+    charCount: countKoreanChars(ctaNarration),
   });
 
   return segments;

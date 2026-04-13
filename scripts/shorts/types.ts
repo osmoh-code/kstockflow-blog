@@ -123,6 +123,7 @@ export interface ShortsAssets {
   readonly headerTitle: string;       // "4월 6일 주목해야 할 종목"
   readonly footerBrand: string;       // "K주식핫이슈"
   readonly footerHint: string;        // "프로필 → 전체 분석"
+  readonly dateBadge: string | null;  // hot-issues only: "4월 13일" (오른쪽 상단 날짜 배지)
 }
 
 export interface RenderScene {

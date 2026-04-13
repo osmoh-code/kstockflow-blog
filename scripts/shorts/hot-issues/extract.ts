@@ -60,7 +60,19 @@ export async function extractHotIssues(slug: string): Promise<ShortsInputData> {
   }));
 
   // 3. Top N limit for narration budget
-  const topStocks = enrichedStocks.slice(0, TOP_N_HOT_ISSUES);
+  //    If frontmatter shorts_stocks is set, use it to filter and reorder.
+  const shortsStocksRaw = typeof post.data.shorts_stocks === "string" ? post.data.shorts_stocks : null;
+  let topStocks;
+  if (shortsStocksRaw) {
+    const desiredNames = shortsStocksRaw.split(",").map((s: string) => s.trim()).filter(Boolean);
+    topStocks = desiredNames
+      .map((name: string) => enrichedStocks.find((s) => s.name === name))
+      .filter((s): s is (typeof enrichedStocks)[number] => s !== undefined)
+      .slice(0, TOP_N_HOT_ISSUES);
+    console.log(`   🎯 shorts_stocks override: ${topStocks.map((s) => s.name).join(", ")}`);
+  } else {
+    topStocks = enrichedStocks.slice(0, TOP_N_HOT_ISSUES);
+  }
 
   // 4. Gemini one-shot: summarize 핵심 요약 → hook narration + 2-line header title.
   //    Both outputs come from the same Gemini call so hook/header stay thematically

@@ -29,6 +29,7 @@ export const Shorts: React.FC<ShortsAssets> = ({
   headerTitle,
   footerBrand,
   footerHint,
+  dateBadge,
 }) => {
   return (
     <AbsoluteFill style={{ backgroundColor: "#000000" }}>
@@ -41,7 +42,7 @@ export const Shorts: React.FC<ShortsAssets> = ({
       ))}
 
       {/* Always-visible letterbox header + footer */}
-      <Letterbox headerTitle={headerTitle} footerBrand={footerBrand} footerHint={footerHint} />
+      <Letterbox headerTitle={headerTitle} footerBrand={footerBrand} footerHint={footerHint} dateBadge={dateBadge} />
 
       {/* Background music — sits under the TTS at low volume */}
       {bgmSrc && <Audio src={staticFile(bgmSrc)} volume={bgmVolume} />}

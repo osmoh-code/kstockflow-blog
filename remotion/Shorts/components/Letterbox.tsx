@@ -6,6 +6,7 @@ interface Props {
   readonly headerTitle: string;
   readonly footerBrand: string;
   readonly footerHint?: string;
+  readonly dateBadge?: string | null;  // hot-issues: "4월 13일" (top-right corner)
 }
 
 /**
@@ -14,7 +15,7 @@ interface Props {
  *  - Clean typography, generous spacing
  *  - Subtle hairline accent borders (instead of heavy 4px lines)
  */
-export const Letterbox: React.FC<Props> = ({ headerTitle, footerBrand, footerHint }) => {
+export const Letterbox: React.FC<Props> = ({ headerTitle, footerBrand, footerHint, dateBadge }) => {
   // Header title auto-sizing: reduce font when 2+ lines are present (hot-issues)
   const lineCount = headerTitle.split("\n").length;
   const headerFontSize = lineCount >= 2 ? 64 : 78;
@@ -53,17 +54,47 @@ export const Letterbox: React.FC<Props> = ({ headerTitle, footerBrand, footerHin
         </div>
         <div
           style={{
-            fontFamily: FONTS.heading,
-            fontSize: headerFontSize,
-            fontWeight: 900,
-            color: COLORS.text,
-            textAlign: "center",
-            letterSpacing: -2,
-            lineHeight: 1.1,
-            whiteSpace: "pre-line", // render \n as line break
+            position: "relative",
+            width: "100%",
+            display: "flex",
+            justifyContent: "center",
           }}
         >
-          {headerTitle}
+          <div
+            style={{
+              fontFamily: FONTS.heading,
+              fontSize: headerFontSize,
+              fontWeight: 900,
+              color: COLORS.text,
+              textAlign: "center",
+              letterSpacing: -2,
+              lineHeight: 1.1,
+              whiteSpace: "pre-line",
+            }}
+          >
+            {headerTitle}
+          </div>
+          {dateBadge && (
+            <div
+              style={{
+                position: "absolute",
+                right: 0,
+                top: "50%",
+                transform: "translateY(-50%)",
+                fontFamily: FONTS.heading,
+                fontSize: 32,
+                fontWeight: 800,
+                color: COLORS.text,
+                background: COLORS.accent,
+                padding: "8px 20px",
+                borderRadius: 12,
+                letterSpacing: 1,
+                whiteSpace: "nowrap",
+              }}
+            >
+              {dateBadge}
+            </div>
+          )}
         </div>
       </div>
 
