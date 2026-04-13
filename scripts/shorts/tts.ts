@@ -139,7 +139,13 @@ export async function synthesizeForSlug(
   for (let i = 0; i < sceneTexts.length; i++) {
     const text = sceneTexts[i];
     const isBody = i >= bodyStartIdx && i < bodyEndIdx;
-    const input = isBody ? wrapWithBreakAfterFirstWord(text, 300) : text;
+    const isCta = i === sceneTexts.length - 1;
+    const input = isBody
+      ? wrapWithBreakAfterFirstWord(text, 300)
+      : isCta
+        ? wrapCtaWithSsml(text)
+        : text;
+    const useSsml = isBody || isCta;
 
     let result: { pcm: Buffer; sampleRate: number; durationSec: number };
     if (provider === "gemini") {
@@ -151,7 +157,7 @@ export async function synthesizeForSlug(
       }
       result = await synthesizePcmGemini(input, voice);
     } else {
-      result = await synthesizePcm(input, voice, isBody);
+      result = await synthesizePcm(input, voice, useSsml);
     }
 
     pcmBuffers.push(result.pcm);
@@ -217,6 +223,22 @@ function escapeXml(s: string): string {
 }
 
 /**
+ * Wrap CTA narration in SSML:
+ * - Blog CTA part: normal tone
+ * - Subscribe part ("매일 장 마감 후 업로드! ..."): upbeat pitch + break before it
+ */
+function wrapCtaWithSsml(text: string): string {
+  const subscribeMarker = "매일 장 마감 후 업로드!";
+  const idx = text.indexOf(subscribeMarker);
+  if (idx < 0) return `<speak>${escapeXml(text)}</speak>`;
+
+  const blogPart = escapeXml(text.slice(0, idx).trim());
+  const subscribePart = escapeXml(text.slice(idx).trim());
+
+  return `<speak>${blogPart}<break time="400ms"/><prosody rate="108%">${subscribePart}</prosody></speak>`;
+}
+
+/**
  * Extract narration text per scene in pipeline order: hook, body[0..], loop?, cta.
  *
  * Loop scene is INCLUDED only if script.loop.narration is non-empty
@@ -237,7 +259,9 @@ function collectSceneTexts(script: ShortsScript): string[] {
   if (hasLoopScene(script)) {
     texts.push(script.loop.narration);
   }
-  texts.push(script.cta.narration);
+  // Append fixed subscribe CTA after Gemini-generated blog CTA
+  const ctaWithSubscribe = `${script.cta.narration} 매일 장 마감 후 업로드! 좋아요와 구독 부탁드립니다.`;
+  texts.push(ctaWithSubscribe);
   return texts;
 }
 

@@ -84,7 +84,7 @@ export const CTAScene: React.FC<Props> = ({ scene }) => {
           {brandName}
         </div>
 
-        {/* Pill CTA button */}
+        {/* Pill CTA button — profile link */}
         <div
           style={{
             display: "inline-flex",
@@ -112,10 +112,51 @@ export const CTAScene: React.FC<Props> = ({ scene }) => {
             fontSize: FONT_SIZES.ctaUrl,
             color: COLORS.textMuted,
             letterSpacing: 1,
-            marginTop: 8,
           }}
         >
           {siteUrl}
+        </div>
+
+        {/* Divider line */}
+        <div
+          style={{
+            width: 120,
+            height: 1,
+            background: COLORS.bgBorder,
+            marginTop: 4,
+            marginBottom: 4,
+          }}
+        />
+
+        {/* Subscribe CTA */}
+        <div
+          style={{
+            fontFamily: FONTS.heading,
+            fontSize: 38,
+            color: COLORS.textSecondary,
+            fontWeight: 800,
+            textAlign: "center",
+            lineHeight: 1.5,
+          }}
+        >
+          매일 장 마감 후{"\n"}주도주 및 이슈 업로드
+        </div>
+        <div
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 12,
+            padding: "16px 40px",
+            background: COLORS.bgCardElevated,
+            borderRadius: RADIUS.pill,
+            border: `1px solid ${COLORS.bgBorder}`,
+            fontSize: 36,
+            fontWeight: 700,
+            color: COLORS.text,
+            fontFamily: FONTS.heading,
+          }}
+        >
+          👍 좋아요 & 구독
         </div>
       </div>
     </AbsoluteFill>

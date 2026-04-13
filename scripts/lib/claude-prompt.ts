@@ -148,7 +148,7 @@ YMYL(Your Money or Your Life) E-E-A-T 기준을 통과하는 고품질 금융 �
 
 ## 출력 형식
 ---FRONTMATTER---
-title: ({키워드} 관련주 TOP {N} | 대장주·수혜주·테마주 총정리 형식)
+title: ({키워드} 관련주 TOP {N} ${new Date().getFullYear()} | 대장주·수혜주·테마주 총정리 형식)
 description: (150-160자 메타 설명)
 category: 핫이슈
 tags: tag1, tag2, tag3, tag4, tag5
@@ -262,7 +262,7 @@ ${newsContext}
 ## 필수 출력 형식
 
 ---FRONTMATTER---
-title: ${keyword} 상장 분석 | 공모가·재무·투자포인트 총정리
+title: ${keyword} 상장 분석 ${new Date().getFullYear()} | 공모가·재무·투자포인트 총정리
 description: (150-160자, 종목명과 핵심 투자포인트를 포함한 메타 설명)
 category: 신규 상장주
 tags: ${keyword}, ${keyword} 상장, ${keyword} 공모, 신규상장, IPO 분석
@@ -389,6 +389,7 @@ related_stocks: ${keyword}
 
 function buildFeaturedStocksUserPrompt(stockData: string): string {
   const today = new Date();
+  const year = today.getFullYear();
   const month = today.getMonth() + 1;
   const day = today.getDate();
 
@@ -402,7 +403,7 @@ ${stockData}
 ## 필수 출력 형식
 
 ---FRONTMATTER---
-title: ${month}월 ${day}일 주식특징주 | {주도테마1}·{주도테마2} 강세, {대장주1}·{대장주2}·{대장주3}·{대장주4} 급등
+title: ${year}년 ${month}월 ${day}일 주식특징주 | {주도테마1}·{주도테마2} 강세, {대장주1}·{대장주2}·{대장주3}·{대장주4} 급등
 description: (80-120자, 오늘의 주요 특징주와 테마를 요약)
 category: 주식특징주
 tags: 주식특징주, ${month}월${day}일 특징주, {주도테마1} 관련주, {대장주1}, {대장주2}, {대장주3}, {대장주4}, 오늘의 특징주
@@ -411,8 +412,8 @@ related_stocks: 종목1, 종목2, 종목3, ...
 ⚠️ title 작성 규칙:
 - {주도테마1}, {주도테마2}는 제공된 데이터에서 당일 가장 강했던 섹터/테마 2개를 짧게 (예: 광통신, 건설주, 방산, 2차전지, AI)
 - {대장주1}~{대장주4}는 등락률 상위 대장주 3~4개 종목명
-- 예시: "${month}월 ${day}일 주식특징주 | 광통신·건설주 강세, 이루온·이노인스트루먼트·대우건설·기가레인 급등"
-- 예시: "${month}월 ${day}일 주식특징주 | 방산·2차전지 강세, 한화시스템·에코프로비엠·풍산·LIG넥스원 급등"
+- 예시: "${year}년 ${month}월 ${day}일 주식특징주 | 광통신·건설주 강세, 이루온·이노인스트루먼트·대우건설·기가레인 급등"
+- 예시: "${year}년 ${month}월 ${day}일 주식특징주 | 방산·2차전지 강세, 한화시스템·에코프로비엠·풍산·LIG넥스원 급등"
 ---CONTENT---
 
 ## 출력 본문 구조 (반드시 이 순서로)
@@ -773,7 +774,7 @@ export function parseResponse(
       const stockPart = topStocks.length >= 1
         ? topStocks.join("·") + " 급등"
         : "급등주 속출";
-      title = `${m}월 ${d}일 주식특징주 | ${sectorPart}, ${stockPart}`;
+      title = `${today.getFullYear()}년 ${m}월 ${d}일 주식특징주 | ${sectorPart}, ${stockPart}`;
     }
   } else if (categorySlug === "new-stocks") {
     title = getValue("title") || keyword;
@@ -781,16 +782,17 @@ export function parseResponse(
     // hot-issues (and default category)
     const stockCount = relatedStocks.length || 5;
     // 키워드에 이미 "관련주"가 포함되어 있으면 중복 방지
+    const year = new Date().getFullYear();
     const suffix = keyword.includes("관련주") ? `TOP ${stockCount}` : `관련주 TOP ${stockCount}`;
     // Always append the canonical subtitle for hot-issues SEO + consistency
-    title = `${keyword} ${suffix} | 대장주·수혜주·테마주 총정리`;
+    title = `${keyword} ${suffix} ${year} | 대장주·수혜주·테마주 총정리`;
   }
 
   const description =
     getValue("description") ||
     (categorySlug === "featured-stocks"
       ? `오늘의 주식특징주 - 급등주, 테마주, 이슈종목을 한눈에 정리합니다.`
-      : `${keyword} 관련주 TOP ${relatedStocks.length || 5} 종목을 심층 분석했습니다. 대장주, 수혜주, 테마주와 투자 포인트를 정리합니다.`);
+      : `${keyword} 관련주 TOP ${relatedStocks.length || 5} 종목을 ${new Date().getFullYear()}년 기준 심층 분석했습니다. 대장주, 수혜주, 테마주와 투자 포인트를 정리합니다.`);
 
   // 주식특징주는 짧은 글이므로 최소 길이 기준 완화
   const minLength = categorySlug === "featured-stocks" ? 300 : 500;

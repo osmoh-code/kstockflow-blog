@@ -167,8 +167,8 @@ npx tsx scripts/generate-post.ts "키워드" --category hot-issues
 
 ### 제목 형식
 
-- "{키워드} 관련주 TOP {N} | 대장주·수혜주·테마주 총정리"
-- N은 관련주 종목 수와 일치
+- "{키워드} 관련주 TOP {N} {연도} | 대장주·수혜주·테마주 총정리"
+- N은 관련주 종목 수와 일치, 연도는 현재 연도 (예: 2026)
 
 ### 분량
 
@@ -224,7 +224,7 @@ npx tsx scripts/generate-post.ts "키워드" --category hot-issues
 
 ### 제목 형식
 
-- "{종목명} 상장 분석 | 공모가·재무·투자포인트 총정리"
+- "{종목명} 상장 분석 {연도} | 공모가·재무·투자포인트 총정리"
 
 ### 분량
 
@@ -296,7 +296,7 @@ npx tsx scripts/generate-post.ts "키워드" --category hot-issues
 
 ### 제목 형식
 
-- "{월}월 {일}일자 주식특징주"
+- "{연도}년 {월}월 {일}일 주식특징주 | {주도테마} 강세, {대장주} 급등"
 
 ### 관련주 선정 규칙
 
@@ -390,6 +390,22 @@ scripts/shorts/
 - 12~14자: 66px
 - 15자 이상: 56px
 - `wordBreak: keep-all` + `whiteSpace: pre-line` 적용 → 한국어 단어 중간 끊김 방지
+
+### CTA 구독 유도 (공통 — featured/hot-issues 모두 적용)
+
+**화면 (CTAScene.tsx)**:
+- 기존 CTA 유지: "더 자세한 내용" → "K주식핫이슈" → 빨간 버튼 "프로필 링크 클릭" → kstockflow.com
+- 구분선 아래 추가: "매일 장 마감 후 / 주도주 및 이슈 업로드" (38px, bold) + 회색 버튼 "좋아요 & 구독"
+
+**보이스 (tts.ts + assets.ts)**:
+- Gemini CTA narration 뒤에 고정 멘트 자동 append: `"매일 장 마감 후 업로드! 좋아요와 구독 부탁드립니다."`
+- SSML: 블로그 CTA → 400ms break → `<prosody rate="108%">` 구독 멘트 (같은 목소리, 약간 빠르게)
+- pitch 변경 금지 (목소리 얇아짐 — 2026-04-13 검증 완료)
+
+**변경 위치**:
+- 화면: `remotion/Shorts/scenes/CTAScene.tsx`
+- 나레이션 텍스트: `scripts/shorts/assets.ts` (collectSegments CTA 부분)
+- TTS SSML: `scripts/shorts/tts.ts` (collectSceneTexts + wrapCtaWithSsml)
 
 ### BGM
 
