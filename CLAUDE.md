@@ -29,10 +29,14 @@ npx tsx scripts/generate-post.ts "3월20일자 주식특징주" --category featu
 npx tsx scripts/generate-post.ts "회사명" --category new-stocks
 
 # 핫이슈
-npx tsx scripts/generate-post.ts "키워드" --category hot-issues
+npx tsx scripts/generate-post.ts "키워드" --category hot-issues --stocks "종목1,종목2,종목3"
 
-# 핫이슈 (관련주 분석, 테마 분석 등 — 기본 카테고리)
-npx tsx scripts/generate-post.ts "키워드" --category hot-issues
+# 기존 핫이슈 글 재생성 (URL/날짜/관련주/썸네일 보존, 본문만 새 프롬프트로)
+# 2026-04-14 신규 추가 (커밋 6c85fd2) — API ~$0.10/건
+npx tsx scripts/generate-post.ts --refresh "2026-04-13-ai-inpeura-pilsugisul-optical-communication-stocks"
+
+# 날짜 override (드물게 사용)
+npx tsx scripts/generate-post.ts "키워드" --category hot-issues --date "2026-04-10"
 ```
 
 ## 썸네일 규칙 (반드시 준수)
@@ -160,6 +164,11 @@ npx tsx scripts/generate-post.ts "키워드" --category hot-issues
      · 전쟁/분쟁: "재개 시 물동량 탄성", "재건 발주 국가별 한국 참여 이력(이라크 2003)"
    - 각 항목 구체 숫자/시점/임계값 포함, 1-2문장 부연
    - 일반형은 최대 1개까지만 허용
+   - **mark 일관성 필수 (커밋 4038d6e)** — 각 체크포인트 항목 첫 키워드구를 `<mark>...</mark>`로 감쌀 것
+     · ❌ "첫째,", "둘째,", "1.", "2." 서수/번호 사용 금지 (항목은 빈 줄로 구분)
+     · 좋은 예: `<mark>SEC 예비심사 진행 상황과 승인 vs 연기 시나리오</mark>별 영향을 분석...`
+     · 10개 글 중 3개에서 mark 불일치 발견 사례 있음 → 모든 항목 동일 규칙 적용 필수
+     · 불일치 발생 시 수동 정규식 수정 가능: `npx tsx scripts/fix-checkpoint-marks.ts` (TARGET_SLUGS 배열 수정 후 실행, API 비용 0)
 
 5. **{키워드} 관련주 투자 결론** — **3가지 구성 중 선택 (2026-04-14 강화)**
 
@@ -489,11 +498,12 @@ git add -A && git commit -m "feat: 글 제목" && git push   # Vercel 자동 배
 
 | 파일                                     | 설명                               |
 | ---------------------------------------- | ---------------------------------- |
-| `scripts/generate-post.ts`             | 글 자동생성 메인 스크립트          |
+| `scripts/generate-post.ts`             | 글 자동생성 메인 스크립트 (신규: `--refresh <slug>`, `--date <YYYY-MM-DD>`) |
 | `scripts/lib/claude-prompt.ts`         | Claude API 시스템/유저 프롬프트    |
 | `scripts/lib/image-search.ts`          | 썸네일 생성 (Sharp) + 이미지 검색  |
 | `scripts/lib/news-search.ts`           | Google 뉴스 RSS 검색               |
 | `scripts/lib/stock-data.ts`            | 관련주 시세+거래대금 크롤링 (KRX+NXT 합산) |
+| `scripts/fix-checkpoint-marks.ts`      | 체크포인트 `<mark>` 일관성 일괄 보정 (API 호출 없음) |
 | `scripts/data/`                        | 38커뮤니케이션 등 수동 데이터 파일 |
 | `content/posts/`                       | MDX 블로그 글                      |
 | `public/images/thumbnails/`            | 생성된 썸네일 이미지               |
