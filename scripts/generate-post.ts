@@ -243,6 +243,8 @@ function parseArgs(): {
   dataFile: string | null;
   ipoUrl: string | null;
   slug: string | null;
+  refreshSlug: string | null;
+  dateOverride: string | null;
 } {
   const args = process.argv.slice(2);
   const keyword = args.find((a) => !a.startsWith("--"));
@@ -271,9 +273,15 @@ function parseArgs(): {
   const slugIdx = args.indexOf("--slug");
   const slug = slugIdx !== -1 && args[slugIdx + 1] ? args[slugIdx + 1] : null;
 
+  const refreshIdx = args.indexOf("--refresh");
+  const refreshSlug = refreshIdx !== -1 && args[refreshIdx + 1] ? args[refreshIdx + 1] : null;
+
+  const dateIdx = args.indexOf("--date");
+  const dateOverride = dateIdx !== -1 && args[dateIdx + 1] ? args[dateIdx + 1] : null;
+
   const preview = args.includes("--preview");
 
-  if (!keyword) {
+  if (!keyword && !refreshSlug) {
     console.error('❌ 사용법: npx tsx scripts/generate-post.ts "키워드"');
     console.error(
       '   옵션: --preview                    (종목 선정만 미리보기)',
@@ -305,7 +313,67 @@ function parseArgs(): {
     process.exit(1);
   }
 
-  return { keyword, stocks, thumbnail, preview, category, dataFile, ipoUrl, slug };
+  return { keyword: keyword ?? "", stocks, thumbnail, preview, category, dataFile, ipoUrl, slug, refreshSlug, dateOverride };
+}
+
+// ---------------------------------------------------------------------------
+// Refresh mode: 기존 MDX 의 frontmatter 를 읽어 keyword/stocks/date/slug 를 그대로 재사용
+// - Claude API 는 본문만 다시 생성
+// - URL, 날짜, 썸네일, 관련주는 보존
+// ---------------------------------------------------------------------------
+function loadRefreshContext(refreshSlug: string): {
+  keyword: string;
+  stocks: readonly string[];
+  date: string;
+  thumbnailLocalPath: string | null;
+  originalTitle: string;
+  category: CategorySlugType;
+} {
+  const mdxPath = path.join(process.cwd(), "content", "posts", `${refreshSlug}.mdx`);
+  if (!fs.existsSync(mdxPath)) {
+    throw new Error(`Refresh 대상 MDX 없음: ${mdxPath}`);
+  }
+  const raw = fs.readFileSync(mdxPath, "utf-8");
+  const fmMatch = raw.match(/^---\s*\n([\s\S]*?)\n---/);
+  if (!fmMatch) {
+    throw new Error(`Frontmatter 파싱 실패: ${mdxPath}`);
+  }
+  const fm = fmMatch[1];
+  const titleMatch = fm.match(/title:\s*"([^"]+)"/);
+  const dateMatch = fm.match(/date:\s*"([^"]+)"/);
+  const thumbMatch = fm.match(/thumbnail:\s*"([^"]+)"/);
+  const stocksMatch = fm.match(/relatedStocks:\s*\[([^\]]+)\]/);
+  const categoryMatch = fm.match(/category:\s*"([^"]+)"/);
+
+  if (!titleMatch) throw new Error("title 누락");
+  if (!categoryMatch) throw new Error("category 누락");
+  const categoryRaw = categoryMatch[1];
+  if (!VALID_CATEGORY_SLUGS.includes(categoryRaw as CategorySlugType)) {
+    throw new Error(`잘못된 category: ${categoryRaw}`);
+  }
+  const category = categoryRaw as CategorySlugType;
+  const fullTitle = titleMatch[1];
+  // 제목 형식: "{keyword} TOP N 2026 | 대장주·수혜주·테마주 총정리"
+  // keyword 추출 — 뒷부분 suffix 제거
+  const keyword = fullTitle
+    .replace(/\s*TOP\s+\d+\s+\d{4}\s*\|.*$/, "")
+    .replace(/\s*관련주\s*$/, "")
+    .trim();
+
+  const date = dateMatch ? dateMatch[1] : refreshSlug.slice(0, 10);
+  const thumbnailWebPath = thumbMatch ? thumbMatch[1] : null;
+  const thumbnailLocalPath = thumbnailWebPath
+    ? path.join(process.cwd(), "public", thumbnailWebPath)
+    : null;
+
+  const stocks = stocksMatch
+    ? stocksMatch[1]
+        .split(",")
+        .map((s) => s.trim().replace(/^["']|["']$/g, ""))
+        .filter(Boolean)
+    : [];
+
+  return { keyword, stocks, date, thumbnailLocalPath, originalTitle: fullTitle, category };
 }
 
 // ---------------------------------------------------------------------------
@@ -579,9 +647,28 @@ function rewriteHotIssuesStockTable(
 // ---------------------------------------------------------------------------
 
 async function main(): Promise<void> {
-  const { keyword, stocks: manualStocks, thumbnail: manualThumbnail, preview, category: categoryOverride, dataFile, ipoUrl, slug: manualSlug } = parseArgs();
+  const parsed = parseArgs();
+  let { keyword, stocks: manualStocks, thumbnail: manualThumbnail } = parsed;
+  const { preview, dataFile, ipoUrl, slug: manualSlug, refreshSlug, dateOverride } = parsed;
+  let categoryOverride = parsed.category;
 
-  console.log(`\n🔍 키워드: "${keyword}"`);
+  // Refresh mode: 기존 MDX 로부터 keyword/stocks/date/thumbnail/category 로드하여 URL/날짜/썸네일 보존
+  let refreshContext: ReturnType<typeof loadRefreshContext> | null = null;
+  if (refreshSlug) {
+    refreshContext = loadRefreshContext(refreshSlug);
+    keyword = refreshContext.keyword;
+    manualStocks = refreshContext.stocks;
+    manualThumbnail = refreshContext.thumbnailLocalPath ?? manualThumbnail;
+    categoryOverride = refreshContext.category;
+    console.log(`\n♻️  Refresh 모드: ${refreshSlug}`);
+    console.log(`   원본 제목: ${refreshContext.originalTitle}`);
+    console.log(`   추출 키워드: ${keyword}`);
+    console.log(`   카테고리 보존: ${categoryOverride}`);
+    console.log(`   관련주 보존: ${manualStocks.join(", ")}`);
+    console.log(`   날짜 보존: ${refreshContext.date}`);
+  } else {
+    console.log(`\n🔍 키워드: "${keyword}"`);
+  }
 
   // -----------------------------------------------------------------------
   // Preview mode: 종목 선정만 미리보기
@@ -906,6 +993,21 @@ async function main(): Promise<void> {
 
   let post = parseResponse(rawText, keyword, categoryOverride ?? undefined);
 
+  // Refresh 모드: 원본 카테고리 강제 보존 (Claude 가 다른 카테고리로 응답할 수 있음)
+  if (refreshContext) {
+    // categoryOverride 는 slug (hot-issues 등) → getCategorySlug 역매핑이 필요
+    const slugToKorean: Record<string, string> = {
+      "hot-issues": "핫이슈",
+      "featured-stocks": "주식특징주",
+      "new-stocks": "신규상장주",
+    };
+    const expectedKorean = slugToKorean[categoryOverride ?? "hot-issues"] ?? "핫이슈";
+    if (post.category !== expectedKorean) {
+      console.log(`🔒 카테고리 강제 적용: ${post.category} → ${expectedKorean} (원본 보존)`);
+      post = { ...post, category: expectedKorean };
+    }
+  }
+
   // 수동 지정 종목이 있으면 relatedStocks 강제 교체
   if (manualStocks.length > 0) {
     post = { ...post, relatedStocks: manualStocks };
@@ -1086,21 +1188,25 @@ async function main(): Promise<void> {
   // -----------------------------------------------------------------------
   // Step 4: 썸네일 이미지 검색 & 다운로드
   // -----------------------------------------------------------------------
-  const date = todayDate();
-  let slugSuffix: string;
-  if (manualSlug) {
-    // --slug 옵션으로 직접 지정
-    slugSuffix = manualSlug;
-  } else if (categoryOverride === "featured-stocks") {
-    // 주식특징주: 항상 featured-stocks 고정 (날짜만 다름)
-    slugSuffix = "featured-stocks";
-  } else if (categoryOverride === "new-stocks") {
-    // 신규상장주: 회사명-new-listing 형태로 자동 생성
-    slugSuffix = `${toSlug(keyword)}-new-listing`;
+  // Refresh 모드 또는 --date 플래그로 날짜/슬러그 보존
+  const date = refreshContext?.date ?? dateOverride ?? todayDate();
+  let slug: string;
+  if (refreshContext) {
+    // 기존 URL 보존
+    slug = refreshSlug as string;
   } else {
-    slugSuffix = toSlug(keyword);
+    let slugSuffix: string;
+    if (manualSlug) {
+      slugSuffix = manualSlug;
+    } else if (categoryOverride === "featured-stocks") {
+      slugSuffix = "featured-stocks";
+    } else if (categoryOverride === "new-stocks") {
+      slugSuffix = `${toSlug(keyword)}-new-listing`;
+    } else {
+      slugSuffix = toSlug(keyword);
+    }
+    slug = `${date}-${slugSuffix}`;
   }
-  const slug = `${date}-${slugSuffix}`;
 
   let thumbnailPath: string;
   let imageCredit: string;
@@ -1113,11 +1219,14 @@ async function main(): Promise<void> {
 
     const destFileName = `${slug}${ext}`;
     const destPath = path.join(destDir, destFileName);
-    fs.copyFileSync(manualThumbnail, destPath);
+    // Refresh 모드에서 src === dst 인 경우 copy 생략 (자기 자신 덮어쓰기 방지)
+    if (path.resolve(manualThumbnail) !== path.resolve(destPath)) {
+      fs.copyFileSync(manualThumbnail, destPath);
+    }
 
     thumbnailPath = `/images/thumbnails/${destFileName}`;
     imageCredit = "";
-    console.log(`🖼️  수동 썸네일 적용: ${manualThumbnail}`);
+    console.log(`🖼️  썸네일 보존: ${thumbnailPath}`);
   } else if (categoryOverride === "featured-stocks") {
     // 주식특징주: 차트 배경 + 날짜 텍스트 오버레이 썸네일
     const now = new Date();
