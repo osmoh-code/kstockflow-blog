@@ -24,11 +24,11 @@ import type { ShortsInputData } from "./types";
 
 export async function extract(
   slug: string,
-  opts: { force?: boolean } = {},
+  opts: { force?: boolean; topN?: number } = {},
 ): Promise<ShortsInputData> {
   const cachePath = inputJsonPath(slug);
 
-  if (!opts.force && fs.existsSync(cachePath)) {
+  if (!opts.force && !opts.topN && fs.existsSync(cachePath)) {
     const cached = JSON.parse(fs.readFileSync(cachePath, "utf-8")) as ShortsInputData;
     console.log(`   ♻️  캐시 사용: ${cachePath}`);
     return cached;
@@ -40,9 +40,9 @@ export async function extract(
   const category = String(post.data.category ?? "hot-issues");
 
   if (category === "hot-issues") {
-    return extractHotIssues(slug);
+    return extractHotIssues(slug, opts.topN);
   }
-  return extractFeaturedStocks(slug);
+  return extractFeaturedStocks(slug, opts.topN);
 }
 
 // ============================================================

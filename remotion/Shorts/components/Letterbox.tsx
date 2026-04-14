@@ -78,7 +78,7 @@ export const Letterbox: React.FC<Props> = ({ headerTitle, footerBrand, footerHin
             <div
               style={{
                 position: "absolute",
-                right: 0,
+                right: -40,
                 top: "50%",
                 transform: "translateY(-50%)",
                 fontFamily: FONTS.heading,

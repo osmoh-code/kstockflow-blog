@@ -191,4 +191,5 @@ export interface RunOpts {
   readonly forceTTS?: boolean;
   readonly forceRender?: boolean;
   readonly voice?: string;
+  readonly topN?: number;
 }

@@ -26,7 +26,7 @@ export async function runShortsPipeline(slug: string, opts: RunOpts = {}): Promi
 
   // Stage 1: extract
   console.log("📄 Step 1/5: MDX 파싱");
-  const input = await extract(slug, { force: opts.force });
+  const input = await extract(slug, { force: opts.force, topN: opts.topN });
   console.log(`   ✅ Top ${input.topStocks.length}개 종목, mark ${input.markPhrases.length}개\n`);
 
   // Stage 2: script (Gemini)
@@ -80,18 +80,21 @@ if (isMain) {
     }
   }
 
-  const slug = process.argv.slice(2).find((a) => !a.startsWith("--"));
-  const force = process.argv.includes("--force");
-  const forceScript = process.argv.includes("--force-script");
-  const forceTTS = process.argv.includes("--force-tts");
-  const forceRender = process.argv.includes("--force-render");
+  const args = process.argv.slice(2);
+  const slug = args.find((a) => !a.startsWith("--"));
+  const force = args.includes("--force");
+  const forceScript = args.includes("--force-script");
+  const forceTTS = args.includes("--force-tts");
+  const forceRender = args.includes("--force-render");
+  const topNArg = args.find((a) => a.startsWith("--top="));
+  const topN = topNArg ? parseInt(topNArg.split("=")[1], 10) : undefined;
 
   if (!slug) {
-    console.error("사용법: npx tsx scripts/shorts/shorts-pipeline.ts <slug> [--force|--force-script|--force-tts|--force-render]");
+    console.error("사용법: npx tsx scripts/shorts/shorts-pipeline.ts <slug> [--top=N] [--force|--force-script|--force-tts|--force-render]");
     process.exit(1);
   }
 
-  runShortsPipeline(slug, { force, forceScript, forceTTS, forceRender }).catch((err) => {
+  runShortsPipeline(slug, { force, forceScript, forceTTS, forceRender, topN }).catch((err) => {
     console.error(`\n❌ 파이프라인 실패:`, err);
     process.exit(1);
   });

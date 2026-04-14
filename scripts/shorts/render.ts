@@ -65,8 +65,7 @@ export async function renderShorts(slug: string, assets: ShortsAssets, opts: Ren
     inputProps: assets as unknown as Record<string, unknown>,
     pixelFormat: "yuv420p",
     audioCodec: "aac",
-    concurrency: 1,
-    x264Preset: "ultrafast",
+    concurrency: 2,
     publicDir: staticDir,
     onProgress: ({ progress }) => {
       const pct = Math.floor(progress * 100);

@@ -31,7 +31,7 @@ import type { ShortsInputData } from "../types";
 // 60s YouTube Shorts preferred window.
 export const TOP_N_HOT_ISSUES = 7;
 
-export async function extractHotIssues(slug: string): Promise<ShortsInputData> {
+export async function extractHotIssues(slug: string, topN?: number): Promise<ShortsInputData> {
   const post = loadPost(slug);
   const category = String(post.data.category ?? "hot-issues");
 
@@ -68,11 +68,12 @@ export async function extractHotIssues(slug: string): Promise<ShortsInputData> {
     topStocks = desiredNames
       .map((name: string) => enrichedStocks.find((s) => s.name === name))
       .filter((s): s is (typeof enrichedStocks)[number] => s !== undefined)
-      .slice(0, TOP_N_HOT_ISSUES);
+      .slice(0, topN ?? TOP_N_HOT_ISSUES);
     console.log(`   🎯 shorts_stocks override: ${topStocks.map((s) => s.name).join(", ")}`);
   } else {
-    topStocks = enrichedStocks.slice(0, TOP_N_HOT_ISSUES);
+    topStocks = enrichedStocks.slice(0, topN ?? TOP_N_HOT_ISSUES);
   }
+  if (topN) console.log(`   🎯 --top=${topN} 적용: ${topStocks.length}개 종목`);
 
   // 4. Gemini one-shot: summarize 핵심 요약 → hook narration + 2-line header title.
   //    Both outputs come from the same Gemini call so hook/header stay thematically

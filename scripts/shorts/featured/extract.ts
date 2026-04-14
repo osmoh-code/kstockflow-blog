@@ -28,7 +28,7 @@ import type { ShortsInputData, TopStock } from "../types";
 export const TOP_N_FEATURED = 5;
 const MAX_HOOK_CANDIDATES = 5;
 
-export async function extractFeaturedStocks(slug: string): Promise<ShortsInputData> {
+export async function extractFeaturedStocks(slug: string, topN?: number): Promise<ShortsInputData> {
   const post = loadPost(slug);
   const category = String(post.data.category ?? "featured-stocks");
 
@@ -47,11 +47,12 @@ export async function extractFeaturedStocks(slug: string): Promise<ShortsInputDa
   const topStocks: TopStock[] = sectorLeaders
     .map((leader) => stockMap.get(leader.leaderName))
     .filter((s): s is TopStock => s !== undefined)
-    .slice(0, TOP_N_FEATURED);
+    .slice(0, topN ?? TOP_N_FEATURED);
 
   // Fallback: if sector leaders can't be matched (e.g., post format differs),
   // fall back to the top-gain stocks from the table
-  const finalTopStocks = topStocks.length >= 3 ? topStocks : allStocks.slice(0, TOP_N_FEATURED);
+  const limit = topN ?? TOP_N_FEATURED;
+  const finalTopStocks = topStocks.length >= 3 ? topStocks : allStocks.slice(0, limit);
 
   const markPhrases = extractMarkPhrases(post.content);
   const sectorHeadings = extractSectorHeadings(post.content);
