@@ -1011,38 +1011,44 @@ async function main(): Promise<void> {
     console.log("🔧 면책 고지 자동 추가");
   }
 
-  // FAQ 섹션 누락 시 자동 추가 (H2 레벨로 존재해야 함)
+  // FAQ 섹션 누락 시 자동 추가 (Claude API 토큰 부족으로 잘렸을 때 최소 폴백)
+  // 주의: 본 폴백은 boilerplate 질문을 피하기 위해 종목 중심 1문항만 사용.
+  // 정상적으로는 claude-prompt.ts의 주제 특화 FAQ 지시가 동작해야 함.
   if (!/^##\s.*자주 묻는 질문/m.test(fixedContent)) {
     fixedContent = fixedContent.replace(/###\s*자주 묻는 질문[\s\S]*$/, "").trimEnd();
-    const faqSection = `\n\n## 자주 묻는 질문\n\n### Q. ${keyword.replace(/관련주$/, "").trim()} 관련주는 어떤 종목이 있나요?\n\n${post.relatedStocks.join(", ")} 등이 대표적인 관련주로 꼽힙니다.\n\n### Q. 대장주는 무엇인가요?\n\n${post.relatedStocks[0] || "해당 테마"}이 시가총액과 거래대금 기준으로 대장주에 해당합니다.\n\n### Q. 주가 전망은 어떤가요?\n\n정책 방향과 관련 산업 성장세에 따라 중장기적 수혜가 기대되나, 단기 변동성에 유의할 필요가 있습니다. 투자 전 기업 실적과 밸류에이션을 반드시 확인하시기 바랍니다.\n`;
+    const kwShort = keyword.replace(/\s*(관련주|수혜주|테마주)\s*/g, "").trim() || keyword;
+    const leader = post.relatedStocks[0] || "대장주";
+    const faqSection = `\n\n## 자주 묻는 질문\n\n### Q. ${kwShort} 이슈에서 주목받는 종목은 어디인가요?\n\n${post.relatedStocks.join(", ")}이 대표적으로 거론됩니다. 특히 ${leader}가 거래대금·등락률 기준으로 가장 주목받고 있으며, 종목별 사업 연관성과 수혜 경로는 본문의 개별 분석 섹션에서 확인하세요.\n\n> ⚠️ 이 FAQ는 API 응답 불완전으로 자동 생성된 최소 버전입니다. 재생성 권장.\n`;
     fixedContent += faqSection;
-    console.log("🔧 FAQ 섹션 자동 추가");
+    console.log("🔧 FAQ 섹션 자동 추가 (최소 폴백 — 재생성 권장)");
   }
 
   // 핫이슈 필수 섹션 누락 시 자동 추가 (Claude API가 토큰 부족으로 뒷부분 생략하는 경우 대비)
+  // boilerplate 패턴 금지. 최소 폴백으로 섹션 존재만 보장하고 재생성 유도.
   if (categoryOverride === "hot-issues" || !categoryOverride) {
     const kw = keyword.replace(/\s*(관련주|수혜주|테마주)\s*/g, "").trim() || keyword;
 
     if (!/^## .*투자 시 체크포인트/m.test(fixedContent)) {
       const insertBefore = fixedContent.search(/^## .*투자 결론/m);
-      const checkSection = `\n\n## ${kw} 투자 시 체크포인트\n\n✔ <mark>단기 테마인지 실적 개선 구간인지 구분 필수</mark>\n정책이나 이슈 발표 직후 급등한 종목이 실제 수주·매출로 이어질 수 있는지 확인이 필요합니다.\n\n✔ <mark>관련 산업 지표 동반 확인</mark>\n업황 지표, 수주 현황, 수출 데이터 등을 함께 모니터링하세요.\n\n✔ <mark>과도한 집중투자 지양</mark>\n테마주 특성상 변동성이 크므로, 분산투자를 통해 리스크를 관리하는 것이 중요합니다.\n`;
+      const checkSection = `\n\n## ${kw} 투자 시 체크포인트\n\n✔ <mark>${kw} 관련 뉴스·공시 흐름 지속 모니터링</mark>\n본 주제는 이벤트·정책·기업 공시 등 특수 변수에 영향을 크게 받습니다. 본문 "시장 상세 분석" 섹션의 개별 이슈 경과를 주시하세요.\n\n✔ <mark>개별 종목 사업 연관성 확인</mark>\n같은 테마라도 실제 수혜 구조는 기업마다 다릅니다. 본문 각 종목 분석의 사업 구조·실적 부분을 우선 참고하세요.\n\n> ⚠️ 이 체크포인트는 API 응답 불완전으로 자동 생성된 최소 버전입니다. 재생성 권장.\n`;
       if (insertBefore !== -1) {
         fixedContent = fixedContent.slice(0, insertBefore) + checkSection + "\n" + fixedContent.slice(insertBefore);
       } else {
         fixedContent += checkSection;
       }
-      console.log("🔧 투자 시 체크포인트 섹션 자동 추가");
+      console.log("🔧 투자 시 체크포인트 섹션 자동 추가 (최소 폴백 — 재생성 권장)");
     }
 
     if (!/^## .*투자 결론/m.test(fixedContent)) {
       const insertBefore = fixedContent.search(/^## .*자주 묻는 질문/m);
-      const conclusionSection = `\n\n## ${kw} 투자 결론\n\n${kw} 관련주는 정책 방향과 산업 성장세에 따라 중장기적 수혜가 기대되는 종목군입니다. 다만 테마주 특성상 단기 변동성이 클 수 있어 신중한 접근이 필요합니다.\n\n향후 관련 정책 발표, 기업 실적 발표, 산업 지표 변화를 주시하며 투자 판단을 내리시기 바랍니다.\n`;
+      const stocksLine = post.relatedStocks.length > 0 ? post.relatedStocks.join(", ") : "관련주";
+      const conclusionSection = `\n\n## ${kw} 관련주 투자 결론\n\n${kw} 관련주로는 ${stocksLine}이 본문에서 다뤄졌습니다. 각 종목의 이벤트별 수혜 구조와 진입·이탈 조건은 본문 상세 분석을 참고하세요.\n\n> ⚠️ 이 결론은 API 응답 불완전으로 자동 생성된 최소 버전입니다. 재생성 권장.\n\n> ※ 본 글은 정보 제공을 목적으로 하며, 투자의 책임은 투자자 본인에게 있습니다.\n`;
       if (insertBefore !== -1) {
         fixedContent = fixedContent.slice(0, insertBefore) + conclusionSection + "\n" + fixedContent.slice(insertBefore);
       } else {
         fixedContent += conclusionSection;
       }
-      console.log("🔧 투자 결론 섹션 자동 추가");
+      console.log("🔧 투자 결론 섹션 자동 추가 (최소 폴백 — 재생성 권장)");
     }
   }
 
