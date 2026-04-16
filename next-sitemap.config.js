@@ -38,12 +38,31 @@ const config = {
       }
     }
 
-    // Blog post pages get higher priority
+    // Blog post pages: boost crawl signal on the 7 newest posts.
+    // Newest 7 by mtime → changefreq=daily, priority=1.0
+    // Rest → changefreq=daily (news-style site), priority=0.8
+    function isTopNRecentPost(urlPath, n = 7) {
+      try {
+        const postsDir = path.join(process.cwd(), "content", "posts");
+        const files = fs.readdirSync(postsDir).filter((f) => f.endsWith(".mdx"));
+        const sorted = files
+          .map((f) => ({ f, mtime: fs.statSync(path.join(postsDir, f)).mtime.getTime() }))
+          .sort((a, b) => b.mtime - a.mtime)
+          .slice(0, n)
+          .map((x) => x.f.replace(/\.mdx$/, ""));
+        const slug = urlPath.replace(/^\/posts\//, "").replace(/\/$/, "");
+        return sorted.includes(slug);
+      } catch {
+        return false;
+      }
+    }
+
     if (urlPath.startsWith("/posts/")) {
+      const isHot = isTopNRecentPost(urlPath, 7);
       return {
         loc: urlPath,
-        changefreq: "weekly",
-        priority: 0.8,
+        changefreq: "daily",
+        priority: isHot ? 1.0 : 0.8,
         lastmod: getPostLastmod(urlPath),
       };
     }
