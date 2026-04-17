@@ -132,6 +132,31 @@ export default function RootLayout({
             function gtag(){dataLayer.push(arguments);}
             gtag('js', new Date());
             gtag('config', '${GA_TRACKING_ID}');
+
+            // GEO: AI referral traffic tracking
+            (function(){
+              var ref = document.referrer || '';
+              var aiSources = {
+                'chat.openai.com': 'ChatGPT',
+                'chatgpt.com': 'ChatGPT',
+                'perplexity.ai': 'Perplexity',
+                'claude.ai': 'Claude',
+                'gemini.google.com': 'Gemini',
+                'copilot.microsoft.com': 'Copilot',
+                'you.com': 'You.com',
+                'phind.com': 'Phind'
+              };
+              for (var domain in aiSources) {
+                if (ref.indexOf(domain) !== -1) {
+                  gtag('event', 'ai_referral', {
+                    ai_source: aiSources[domain],
+                    referrer: ref,
+                    page_path: window.location.pathname
+                  });
+                  break;
+                }
+              }
+            })();
           `}
         </Script>
       </head>
