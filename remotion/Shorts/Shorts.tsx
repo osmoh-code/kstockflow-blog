@@ -10,6 +10,7 @@ import { StockCardScene } from "./scenes/StockCardScene";
 import { ChartScene } from "./scenes/ChartScene";
 import { CTAScene } from "./scenes/CTAScene";
 import { LoopScene } from "./scenes/LoopScene";
+import { SectorTableScene } from "./scenes/SectorTableScene";
 
 /**
  * Main YouTube Shorts composition.
@@ -68,6 +69,8 @@ function renderScene(scene: RenderScene): React.ReactNode {
       return <CTAScene scene={scene} />;
     case "loop":
       return <LoopScene scene={scene} />;
+    case "sector_table":
+      return <SectorTableScene scene={scene} />;
     default:
       return null;
   }

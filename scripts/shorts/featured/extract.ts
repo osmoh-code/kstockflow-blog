@@ -21,6 +21,7 @@ import {
   extractSectorLeaders,
 } from "../lib/mark-extractor";
 import { ensureDir, inputJsonPath, pendingDir } from "../lib/shorts-paths";
+import { getStockInfo } from "../../lib/stock-data";
 import type { ShortsInputData, TopStock } from "../types";
 
 // Top N sector leaders to render in body scenes. With featured-stocks we
@@ -28,7 +29,11 @@ import type { ShortsInputData, TopStock } from "../types";
 export const TOP_N_FEATURED = 5;
 const MAX_HOOK_CANDIDATES = 5;
 
-export async function extractFeaturedStocks(slug: string, topN?: number): Promise<ShortsInputData> {
+export async function extractFeaturedStocks(
+  slug: string,
+  topN?: number,
+  stocksOverride?: readonly string[],
+): Promise<ShortsInputData> {
   const post = loadPost(slug);
   const category = String(post.data.category ?? "featured-stocks");
 
@@ -39,20 +44,29 @@ export async function extractFeaturedStocks(slug: string, topN?: number): Promis
     stockMap.set(s.name, s);
   }
 
-  // 2. Extract one leader per sector from the blog's "섹터별 특징주 분석" section
-  //    (uses the blog's own sector grouping — never invents new sectors)
-  const sectorLeaders = extractSectorLeaders(post.content);
+  let finalTopStocks: TopStock[];
 
-  // 3. Join leader names with the table data
-  const topStocks: TopStock[] = sectorLeaders
-    .map((leader) => stockMap.get(leader.leaderName))
-    .filter((s): s is TopStock => s !== undefined)
-    .slice(0, topN ?? TOP_N_FEATURED);
+  if (stocksOverride && stocksOverride.length > 0) {
+    // User-specified override — use these names verbatim.
+    // Source priority: 1) stockMap (table) → 2) body regex → 3) live naver API
+    console.log(`   🎯 stocks override: ${stocksOverride.join(", ")}`);
+    finalTopStocks = await buildOverrideTopStocks(stocksOverride, stockMap, post.content);
+  } else {
+    // 2. Extract one leader per sector from the blog's "섹터별 특징주 분석" section
+    //    (uses the blog's own sector grouping — never invents new sectors)
+    const sectorLeaders = extractSectorLeaders(post.content);
 
-  // Fallback: if sector leaders can't be matched (e.g., post format differs),
-  // fall back to the top-gain stocks from the table
-  const limit = topN ?? TOP_N_FEATURED;
-  const finalTopStocks = topStocks.length >= 3 ? topStocks : allStocks.slice(0, limit);
+    // 3. Join leader names with the table data
+    const topStocks: TopStock[] = sectorLeaders
+      .map((leader) => stockMap.get(leader.leaderName))
+      .filter((s): s is TopStock => s !== undefined)
+      .slice(0, topN ?? TOP_N_FEATURED);
+
+    // Fallback: if sector leaders can't be matched (e.g., post format differs),
+    // fall back to the top-gain stocks from the table
+    const limit = topN ?? TOP_N_FEATURED;
+    finalTopStocks = topStocks.length >= 3 ? topStocks : allStocks.slice(0, limit);
+  }
 
   const markPhrases = extractMarkPhrases(post.content);
   const sectorHeadings = extractSectorHeadings(post.content);
@@ -79,6 +93,99 @@ export async function extractFeaturedStocks(slug: string, topN?: number): Promis
   ensureDir(pendingDir(slug));
   fs.writeFileSync(inputJsonPath(slug), JSON.stringify(data, null, 2), "utf-8");
   return data;
+}
+
+/**
+ * Build TopStock entries from a user-specified override list.
+ * Resolves each name from the table first, then falls back to body regex,
+ * and finally fetches live etrade from naver finance.
+ */
+async function buildOverrideTopStocks(
+  names: readonly string[],
+  stockMap: Map<string, TopStock>,
+  content: string,
+): Promise<TopStock[]> {
+  const result: TopStock[] = [];
+  for (const name of names) {
+    const fromTable = stockMap.get(name);
+    if (fromTable) {
+      result.push(fromTable);
+      continue;
+    }
+
+    const bodyData = parseStockFromBody(content, name);
+    let { changePercent, tradeAmount } = bodyData;
+
+    if (changePercent === undefined) {
+      const live = await getStockInfo(name);
+      if (live) {
+        const num = parseFloat(live.changePercent.replace(/[+%]/g, ""));
+        if (!Number.isNaN(num)) changePercent = num;
+        if (live.tradeAmount && live.tradeAmount !== "-") tradeAmount = live.tradeAmount;
+      }
+    }
+
+    if (changePercent === undefined) {
+      console.warn(`   ⚠️ "${name}" 데이터 확보 실패, 스킵`);
+      continue;
+    }
+
+    result.push({
+      name,
+      sector: bodyData.sector || "관련주",
+      reason: bodyData.reason || "",
+      changePercent,
+      tradeAmount: tradeAmount || "-억원",
+    });
+  }
+  return result;
+}
+
+interface BodyStockData {
+  sector: string;
+  reason: string;
+  changePercent?: number;
+  tradeAmount?: string;
+}
+
+function parseStockFromBody(content: string, name: string): BodyStockData {
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  let sector = "";
+  let reason = "";
+
+  // Find H3 sector whose "주요 종목:" line lists this name
+  const sectionRegex = /^### (.+?)\n([\s\S]*?)(?=^### |^## |$(?![\r\n]))/gm;
+  let m: RegExpExecArray | null;
+  while ((m = sectionRegex.exec(content)) !== null) {
+    const heading = m[1].trim();
+    const body = m[2];
+    const major = body.match(/주요 종목:\s*([^\n]+)/);
+    if (major) {
+      const listed = major[1].split(",").map((s) => s.trim());
+      if (listed.includes(name)) {
+        sector = heading.replace(/^[^가-힣A-Za-z]+/, "").replace(/\s*관련주\s*$/, "").trim();
+        const sentenceRe = new RegExp(`[^.\\n]*${escaped}[^.\\n]*\\.`, "u");
+        const sm = body.match(sentenceRe);
+        if (sm) reason = sm[0].trim().replace(/<\/?mark>/g, "");
+        break;
+      }
+    }
+  }
+
+  // changePercent: "{name}{조사} <mark>?12.34% 급등" 같은 패턴
+  const changeRe = new RegExp(`${escaped}[은는이가]?\\s*(?:<mark>)?\\s*([\\d.]+)%`, "u");
+  const cm = changeRe.exec(content);
+
+  // tradeAmount: "{name} ... 거래대금 12,345억원"
+  const tradeRe = new RegExp(`${escaped}[\\s\\S]{0,300}거래대금\\s*([\\d,]+)\\s*억원`, "u");
+  const tm = tradeRe.exec(content);
+
+  return {
+    sector,
+    reason,
+    changePercent: cm ? parseFloat(cm[1]) : undefined,
+    tradeAmount: tm ? `${tm[1]}억원` : undefined,
+  };
 }
 
 /**

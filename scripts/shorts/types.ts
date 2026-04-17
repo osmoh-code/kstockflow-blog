@@ -150,7 +150,7 @@ export interface TableRow {
   readonly sector: string;
 }
 
-export type SceneType = "hook" | "stock_card" | "chart" | "cta" | "loop";
+export type SceneType = "hook" | "stock_card" | "chart" | "cta" | "loop" | "sector_table";
 
 export interface CTAProps {
   readonly brandName: string;
@@ -192,4 +192,5 @@ export interface RunOpts {
   readonly forceRender?: boolean;
   readonly voice?: string;
   readonly topN?: number;
+  readonly stocksOverride?: readonly string[];
 }

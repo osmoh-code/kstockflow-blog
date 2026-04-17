@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "prebuild": "tsx scripts/generate-search-index.ts",
-    "build": "next build && next-sitemap",
+    "build": "next build",
     "start": "next start",
     "lint": "next lint",
     "postbuild": "next-sitemap && tsx scripts/validate-seo.ts && tsx scripts/submit-urls.ts",

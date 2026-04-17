@@ -25,7 +25,16 @@ import { loadPost } from "./lib/load-post";
 import { scriptJsonPath, approvedDir } from "./lib/shorts-paths";
 import { buildFeaturedStocksFirstComment } from "./featured/upload-meta";
 import { buildHotIssuesFirstComment } from "./hot-issues/upload-meta";
+import { buildSectorLeadersFirstComment } from "./sector-leaders/upload-meta";
+import type { SectorLeadersScript } from "./sector-leaders/types";
 import type { ShortsScript } from "./types";
+
+const SECTOR_LEADERS_SUFFIX = "-sector-leaders";
+function toMdxSlug(slug: string): string {
+  return slug.endsWith(SECTOR_LEADERS_SUFFIX)
+    ? slug.slice(0, -SECTOR_LEADERS_SUFFIX.length)
+    : slug;
+}
 
 // Load .env.local
 if (fs.existsSync(".env.local")) {
@@ -35,14 +44,15 @@ if (fs.existsSync(".env.local")) {
   }
 }
 
-type ShortsCategory = "featured-stocks" | "hot-issues";
+type ShortsCategory = "featured-stocks" | "hot-issues" | "sector-leaders";
 
 /**
- * Detect the shorts category from the post's frontmatter `category` field.
- * This is the same pattern used by upload.ts and extract.ts so routing
- * stays consistent. Defaults to "hot-issues" for legacy posts.
+ * Detect the shorts category. Mirrors upload.ts:
+ *   - "-sector-leaders" suffix on the cache slug → sector-leaders
+ *   - otherwise frontmatter `category` field (featured-stocks / hot-issues)
  */
 function detectCategory(slug: string): ShortsCategory {
+  if (slug.endsWith(SECTOR_LEADERS_SUFFIX)) return "sector-leaders";
   try {
     const post = loadPost(slug);
     const raw = String(post.data.category ?? "hot-issues");
@@ -88,7 +98,8 @@ async function main() {
     console.error("slug must start with YYYY-MM-DD");
     process.exit(1);
   }
-  const postUrl = isBareDate ? "https://kstockflow.com" : buildPostUrl(slug);
+  const mdxSlug = toMdxSlug(slug);
+  const postUrl = isBareDate ? "https://kstockflow.com" : buildPostUrl(mdxSlug);
   const category: ShortsCategory = isBareDate ? "featured-stocks" : detectCategory(slug);
   const script = isBareDate ? null : loadShortsScript(slug);
 
@@ -136,7 +147,13 @@ async function main() {
   const text =
     category === "hot-issues"
       ? buildHotIssuesFirstComment(script, postUrl)
-      : buildFeaturedStocksFirstComment(slug, postUrl);
+      : category === "sector-leaders"
+        ? buildSectorLeadersFirstComment(
+            mdxSlug,
+            script as SectorLeadersScript | null,
+            postUrl,
+          )
+        : buildFeaturedStocksFirstComment(slug, postUrl);
 
   try {
     await youtube.commentThreads.insert({

@@ -29,9 +29,22 @@ import {
   buildHotIssuesMetadata,
   buildHotIssuesFirstComment,
 } from "./hot-issues/upload-meta";
+import {
+  buildSectorLeadersMetadata,
+  buildSectorLeadersFirstComment,
+} from "./sector-leaders/upload-meta";
+import type { SectorLeadersScript } from "./sector-leaders/types";
 import type { ShortsScript } from "./types";
 
-type ShortsCategory = "featured-stocks" | "hot-issues";
+type ShortsCategory = "featured-stocks" | "hot-issues" | "sector-leaders";
+
+/** Strip the "-sector-leaders" cache-slug suffix to recover the original MDX slug. */
+const SECTOR_LEADERS_SUFFIX = "-sector-leaders";
+function toMdxSlug(slug: string): string {
+  return slug.endsWith(SECTOR_LEADERS_SUFFIX)
+    ? slug.slice(0, -SECTOR_LEADERS_SUFFIX.length)
+    : slug;
+}
 
 type Privacy = "public" | "unlisted" | "private";
 
@@ -71,15 +84,23 @@ export async function uploadShort(slug: string, opts: UploadOpts = {}): Promise<
   const fallbackScriptPath = scriptJsonPath(slug);
   const script = loadScript(scriptPath, fallbackScriptPath);
 
-  // Detect category from frontmatter (authoritative — same pattern as extract.ts
-  // router). Never derive category from slug suffix; hot-issues slugs may end
-  // in "-stocks" per the SEO slug rule.
+  // Detect category from frontmatter (authoritative). Never derive category
+  // from slug suffix EXCEPT the sector-leaders "-sector-leaders" cache-slug
+  // convention — that IS the authoritative signal for this category because
+  // sector-leaders posts don't have their own MDX (they reuse featured-stocks).
   const category = detectCategory(slug);
-  const postUrl = buildPostUrl(slug);
+  const mdxSlug = toMdxSlug(slug);
+  const postUrl = buildPostUrl(mdxSlug); // blog URL uses the base featured-stocks slug
   const { title, description, tags } =
     category === "hot-issues"
       ? buildHotIssuesMetadata(slug, script, postUrl)
-      : buildFeaturedStocksMetadata(slug, script, postUrl);
+      : category === "sector-leaders"
+        ? buildSectorLeadersMetadata(
+            mdxSlug,
+            script as SectorLeadersScript | null,
+            postUrl,
+          )
+        : buildFeaturedStocksMetadata(slug, script, postUrl);
 
   console.log(`   📝 제목: ${title}`);
   console.log(`   🏷️  태그: ${tags.slice(0, 5).join(", ")}${tags.length > 5 ? "..." : ""}`);
@@ -147,7 +168,13 @@ export async function uploadShort(slug: string, opts: UploadOpts = {}): Promise<
   const firstComment =
     category === "hot-issues"
       ? buildHotIssuesFirstComment(script, postUrl)
-      : buildFeaturedStocksFirstComment(slug, postUrl);
+      : category === "sector-leaders"
+        ? buildSectorLeadersFirstComment(
+            mdxSlug,
+            script as SectorLeadersScript | null,
+            postUrl,
+          )
+        : buildFeaturedStocksFirstComment(slug, postUrl);
   try {
     await postFirstComment(youtube, videoId, firstComment);
     console.log(`   💬 첫 댓글 자동 추가 완료 (수동으로 핀 고정 권장)`);
@@ -171,6 +198,9 @@ export async function uploadShort(slug: string, opts: UploadOpts = {}): Promise<
  * Defaults to "hot-issues" for legacy posts without a category field.
  */
 function detectCategory(slug: string): ShortsCategory {
+  // sector-leaders is driven by the cache-slug suffix, not frontmatter — it
+  // reuses the featured-stocks MDX so its own slug has no matching .mdx file.
+  if (slug.endsWith(SECTOR_LEADERS_SUFFIX)) return "sector-leaders";
   try {
     const post = loadPost(slug);
     const raw = String(post.data.category ?? "hot-issues");

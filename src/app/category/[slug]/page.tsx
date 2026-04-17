@@ -4,7 +4,6 @@ import {
   BarChart3,
   Flame,
   TrendingUp,
-  Globe,
 } from "lucide-react";
 import { CATEGORIES, SITE_NAME, SITE_URL } from "@/lib/constants";
 import { getPostsByCategory } from "@/lib/posts";
@@ -22,7 +21,6 @@ const CATEGORY_ICONS: Record<string, React.ElementType> = {
   "featured-stocks": BarChart3,
   "hot-issues": Flame,
   "new-stocks": TrendingUp,
-  "theme-news": Globe,
 };
 
 const CATEGORY_DESCRIPTIONS: Record<string, string> = {
@@ -32,8 +30,6 @@ const CATEGORY_DESCRIPTIONS: Record<string, string> = {
     "시장을 움직이는 핫이슈를 빠르게 전달합니다. 정책 변화, 글로벌 이슈, 산업 트렌드와 관련주를 분석합니다.",
   "new-stocks":
     "신규 상장 종목과 IPO를 분석합니다. 공모가 대비 전망, 사업 모델, 성장 가능성을 살펴보세요.",
-  "theme-news":
-    "주식 시장의 핵심 재료와 테마 뉴스를 분석합니다. 종목에 영향을 미치는 재료를 빠르게 파악하세요.",
 };
 
 export function generateStaticParams() {

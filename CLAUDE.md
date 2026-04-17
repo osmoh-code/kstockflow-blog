@@ -352,33 +352,60 @@ npx tsx scripts/generate-post.ts "키워드" --category hot-issues --date "2026-
 ### 명령어
 
 ```bash
-# 어떤 카테고리든 동일 명령
+# featured-stocks / hot-issues (라우터 경유, frontmatter category로 자동 dispatch)
 npx tsx scripts/shorts/shorts-pipeline.ts <slug>
 
+# sector-leaders (완전 별도 파이프라인 — 기존 라우터 안 거침)
+npx tsx scripts/shorts/sector-leaders-pipeline.ts <featured-stocks-slug>
+# 예) npx tsx scripts/shorts/sector-leaders-pipeline.ts 2026-04-15-featured-stocks
+# → dist/shorts/pending/{slug}-sector-leaders/*.mp4 로 저장 (캐시 격리)
+
 # 업로드 (반드시 --privacy=private — 사용자가 검수 후 직접 공개)
-npx tsx scripts/shorts/upload.ts <slug> --privacy=private
+#   featured / hot-issues → 그냥 slug
+#   sector-leaders       → {slug}-sector-leaders (cache slug 그대로)
+#   upload.ts / publish.ts가 접미사로 카테고리 자동 dispatch
+npx tsx scripts/shorts/upload.ts <slug-or-cache-slug> --privacy=private
 
 # 댓글 추가 + public 전환 (사용자가 검수 OK 후)
-npx tsx scripts/shorts/publish.ts <videoId> <slug>
+npx tsx scripts/shorts/publish.ts <videoId> <slug-or-cache-slug>
+
+# (긴급) 업로드 후 제목/설명/태그만 patch — 메타 빌더 버그 발견 시 재업로드 없이 수정
+npx tsx scripts/shorts/sector-leaders/update-title.ts <videoId> <cache-slug>
 ```
 
 ### 디렉토리 구조 (분리됨 — 절대 섞지 말 것)
 
 ```
 scripts/shorts/
-├── extract.ts / script.ts / assets.ts   ← router only (category로 dispatch)
+├── extract.ts / script.ts / assets.ts    ← router only (featured/hot-issues dispatch)
+├── shorts-pipeline.ts                    ← featured/hot-issues CLI
+├── sector-leaders-pipeline.ts            ← sector-leaders 전용 CLI (라우터 경유하지 않음)
 ├── tts.ts / render.ts                    ← 공통 (분기 없음)
 ├── featured/                             ← featured-stocks 전용
 │   ├── extract.ts (5-col table parser)
 │   ├── script.ts (Gemini hook + body)
 │   └── assets.ts (date header)
-└── hot-issues/                           ← hot-issues 전용
-    ├── extract.ts (3-col table + Gemini summary)
-    ├── script.ts (rule-based + 종목명 prefix)
-    └── assets.ts (Gemini header override 우선)
+├── hot-issues/                           ← hot-issues 전용
+│   ├── extract.ts (3-col table + Gemini summary)
+│   ├── script.ts (rule-based + 종목명 prefix)
+│   └── assets.ts (Gemini header override 우선)
+└── sector-leaders/                       ← sector-leaders 전용 (2026-04-15 신설)
+    ├── parse-sectors.ts ("## 섹터별 특징주 분석" H2 파서, 기업이벤트 제외)
+    ├── summarize-reason.ts (Gemini batch 1문장 요약, temperature 0.7)
+    ├── extract.ts (섹터 + 종목 등락률 lookup 3단계)
+    ├── script.ts (규칙 기반 hook/body, loop 생략)
+    ├── assets.ts (sector_table scene, dateBadge null)
+    ├── upload-meta.ts (제목/설명/태그/첫댓글 빌더, 섹터 키워드 동적 추출)
+    ├── update-title.ts (업로드 후 제목만 patch하는 긴급 유틸)
+    └── types.ts (sector-leaders 전용 타입)
 ```
 
-**규칙**: featured-stocks 수정은 `featured/` 안에서, hot-issues 수정은 `hot-issues/` 안에서. router 파일에 카테고리 specific 로직 박지 말 것.
+**규칙**:
+- featured-stocks 수정은 `featured/` 안에서만
+- hot-issues 수정은 `hot-issues/` 안에서만
+- sector-leaders 수정은 `sector-leaders/` 안에서만
+- router 파일에 카테고리 specific 로직 박지 말 것
+- sector-leaders는 라우터와 완전 독립 (사용자 2026-04-15 지시: "특징주랑 핫이슈 쇼츠제작이랑 합쳐지면 안되고 별도로 만들어져야함")
 
 ### featured-stocks 쇼츠 (매일 발행)
 
@@ -415,6 +442,63 @@ scripts/shorts/
 **Letterbox header**: Gemini 자동 생성 결과 사용 (frontmatter `shorts_header_title`이 있으면 그게 우선)
 
 **Loop**: 전체 관련주 10개 테이블 (compact mode)
+
+### sector-leaders 쇼츠 (2026-04-15 신설, featured-stocks MDX 재활용)
+
+**Hook (고정 템플릿 — 규칙 기반, Gemini 안 씀)**
+- narration: `"{N월 N일} 시장을 주도한 섹터와 종목은?"`
+- onScreenText: `"{N월 N일}\n주도 섹터 TOP {N}"` (N = 실제 섹터 개수)
+- 변경 위치: `scripts/shorts/sector-leaders/script.ts` — `buildSectorLeadersScript`
+- ⚠️ featured-stocks의 hook과 혼동 금지 (featured는 "핵심종목 총정리", sector-leaders는 "섹터와 종목은?")
+
+**Body (Gemini batch 1문장 요약 + 종목 테이블)**
+- 섹터당 1 scene, 최대 개수 제한 없음 (블로그 H3 전부 반영, 단 "기업이벤트" 섹터는 제외)
+- narration: Gemini 2.5 Flash batch 요약 (한 번 호출로 모든 섹터 동시 처리)
+  - 프롬프트 규칙: 25~45자, 구체적 트리거 필수, 종목명 금지, "~이끌었습니다" 어미 최대 1회, 어미·구조 다양화 강제
+  - temperature 0.7 (creative but on-topic)
+  - 변경 위치: `scripts/shorts/sector-leaders/summarize-reason.ts` SYSTEM_PROMPT
+  - 실패 시 fallback: parse-sectors.ts의 truncated 첫 문단
+- onScreenText: 섹터 H3 heading 그대로 (예: `"🔐 양자암호/양자컴퓨팅 관련주"`)
+- 테이블: MDX "주요 종목:" 라인의 전부를 row로 (종목명 / 상승률 2열, 종목 수에 따라 폰트 auto-fit 5단계)
+- 등락률 lookup 3단계: 1) 상단 5-col 테이블 → 2) 본문 regex (`{name} … NN.NN%` 120자 window) → 3) 네이버 API `getStockInfo` 병렬
+
+**CTA**: 기존 featured/hot-issues와 동일 (K주식핫이슈 + "매일 장 마감 후 업로드! 좋아요와 구독" 자동 append)
+
+**Loop**: **제거됨** — `script.loop.narration = ""`로 두면 collectSegments가 drop.
+- 사용자 2026-04-15 지시: "loop에서 오늘 분석한 종목 전체 테이블 보여주는거 생략, CTA만 동일하게"
+
+**Letterbox header**: `"N월 N일 주도 섹터 TOP N"` (date-based)
+
+**dateBadge**: `null` 고정 — 우측 상단 날짜 배지는 hot-issues 전용. sector-leaders는 사용 금지.
+
+**캐시 격리**: 내부적으로 `{mdxSlug}-sector-leaders` 접미사를 붙여 `dist/shorts/pending/` 분리. 같은 MDX 글에 대해 featured-stocks 쇼츠와 sector-leaders 쇼츠 **병행 생성 가능** (서로 간섭 없음).
+
+**신규 Remotion scene**: `remotion/Shorts/scenes/SectorTableScene.tsx` — 섹터 타이틀 + 상승이유 자막 + 종목/상승률 2열 테이블 (rowCount 4~13+ 5단계 auto-fit)
+
+**YouTube 업로드 메타 (2026-04-15 사용자 승인)**
+- 제목 템플릿: `"{N월N일} 시장 주도섹터 총정리 | {상위 3 섹터 키워드} 강세"`
+  - 예) `"4월15일 시장 주도섹터 총정리 | 양자암호·전력설비·건설 강세"`
+- 섹터 키워드는 `script.sectorHeadings`에서 **동적 추출** (매일 다른 주도 섹터 반영)
+- 첫 댓글: 주도 섹터 나열 + `K주식핫이슈에서 매일 업데이트됩니다` + 블로그 링크
+- 태그: `["주식","주도섹터","시장분석","특징주","테마주","한국주식","shorts","K주식핫이슈","{월일}", ...섹터키워드]`
+- 변경 위치: `scripts/shorts/sector-leaders/upload-meta.ts` — `buildSectorLeadersMetadata` / `buildSectorLeadersFirstComment`
+
+**이모지 제거 정규식 주의 (normalizeSectorKeyword)**
+- 이모지는 **base codepoint + VS-16 (U+FE0F) 조합**으로 렌더링되는 경우가 있음 (예: "🏗️" = U+1F3D7 + U+FE0F)
+- 정규식에 U+FE0F와 ZWJ(U+200D)도 포함해야 함. 누락 시 "·️ 건설"처럼 유령 문자가 남음 (2026-04-15 첫 업로드에서 실제 발생)
+- 확정 패턴: `/^[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{1F000}-\u{1F9FF}\u{FE0F}\u{200D}]+\s*/u`
+
+**upload.ts / publish.ts 카테고리 감지 (완전 분리 유지하면서 dispatch)**
+- **`-sector-leaders` 슬러그 접미사**가 sector-leaders의 authoritative signal
+  - sector-leaders MDX 파일이 존재하지 않음(featured-stocks MDX 재활용) → frontmatter 기반 감지 불가 → 접미사로 판정
+- `toMdxSlug()` 헬퍼로 suffix 제거 → `buildPostUrl(mdxSlug)` → featured-stocks 원본 글 링크 유지
+- featured-stocks / hot-issues는 기존 frontmatter dispatch 그대로 (변경 없음)
+
+**긴급 메타 수정 유틸 (`update-title.ts`)**
+- 업로드 이후 메타 빌더 버그를 발견했을 때 영상 재업로드 없이 YouTube API `videos.update`로 **제목·설명·태그만 patch**
+- 사용: `npx tsx scripts/shorts/sector-leaders/update-title.ts <videoId> <cache-slug>`
+- 내부적으로 `buildSectorLeadersMetadata`를 재호출 → 수정된 빌더 결과로 업데이트 (API 할당량 ~50 units)
+- 2026-04-15 이모지 regex 버그 수정에서 처음 사용됨
 
 ### Remotion 폰트 auto-fit (HookScene)
 
@@ -479,8 +563,24 @@ mp4가 60초 이내 생성, BGM 들어있고, hook/header가 위 규칙대로 �
 ## 빌드 & 배포
 
 ```bash
-npm run build    # Next.js 빌드 + 사이트맵 생성
+npm run build    # Next.js 빌드 → next-sitemap → validate-seo → 색인 자동 제출
 git add -A && git commit -m "feat: 글 제목" && git push   # Vercel 자동 배포
+```
+
+### 색인 자동 제출 (2026-04-17 구축)
+
+`npm run build` 실행 시 postbuild에서 자동 실행:
+1. **IndexNow** → Bing, Naver, Yandex 즉시 색인
+2. **Google Indexing API** → Google 즉시 색인 요청
+
+Google 인증: `google-credentials.json` (프로젝트 루트, **절대 git 커밋 금지**)
+- 서비스 계정: `kstockflow-indexing@gen-lang-client-0915144229.iam.gserviceaccount.com`
+- Search Console 소유자 등록 완료
+
+수동 실행도 가능:
+```bash
+npx tsx scripts/submit-urls.ts          # 새 URL만 제출
+npx tsx scripts/submit-urls.ts --all    # 전체 URL 재제출
 ```
 
 ## 세션 연속성
@@ -504,7 +604,9 @@ git add -A && git commit -m "feat: 글 제목" && git push   # Vercel 자동 배
 | `scripts/lib/news-search.ts`           | Google 뉴스 RSS 검색               |
 | `scripts/lib/stock-data.ts`            | 관련주 시세+거래대금 크롤링 (KRX+NXT 합산) |
 | `scripts/fix-checkpoint-marks.ts`      | 체크포인트 `<mark>` 일관성 일괄 보정 (API 호출 없음) |
+| `scripts/submit-urls.ts`              | 색인 자동 제출 (IndexNow + Google Indexing API) |
 | `scripts/data/`                        | 38커뮤니케이션 등 수동 데이터 파일 |
+| `google-credentials.json`             | Google 서비스 계정 키 (**git 커밋 금지**) |
 | `content/posts/`                       | MDX 블로그 글                      |
 | `public/images/thumbnails/`            | 생성된 썸네일 이미지               |
 | `public/images/featured-stocks-bg.jpg` | 주식특징주 썸네일 배경             |

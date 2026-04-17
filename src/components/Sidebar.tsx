@@ -3,7 +3,6 @@ import {
   BarChart3,
   Flame,
   TrendingUp,
-  Globe,
   CalendarDays,
 } from "lucide-react";
 import { CATEGORIES } from "@/lib/constants";
@@ -16,7 +15,6 @@ const CATEGORY_ICONS: Record<string, React.ElementType> = {
   "featured-stocks": BarChart3,
   "hot-issues": Flame,
   "new-stocks": TrendingUp,
-  "theme-news": Globe,
 };
 
 function formatDate(dateStr: string): string {

@@ -1,10 +1,14 @@
 #!/usr/bin/env tsx
 /**
- * 색인 자동 제출 스크립트
+ * 색인 자동 제출 스크립트 — postbuild에서 자동 실행
  *
- * 빌드 후 자동 실행되어 새 글 URL을 검색엔진에 제출합니다.
+ * 새 글 URL을 모든 주요 검색엔진에 자동 제출합니다:
  * 1. IndexNow API → Bing, Naver, Yandex 즉시 색인
- * 2. Google Search Console API → 사이트맵 재제출
+ * 2. Google Indexing API → Google 즉시 색인 요청
+ *
+ * Google 인증 (둘 중 하나):
+ *   A) google-credentials.json (서비스 계정 JSON 키) — 프로젝트 루트
+ *   B) .env.local에 GOOGLE_SERVICE_ACCOUNT_EMAIL + GOOGLE_PRIVATE_KEY
  *
  * Usage:
  *   npx tsx scripts/submit-urls.ts          # 새 URL만 제출
@@ -15,12 +19,33 @@ import fs from "fs";
 import path from "path";
 
 // ---------------------------------------------------------------------------
+// .env.local 로드 (Next.js 외부 실행 시 환경변수 확보)
+// ---------------------------------------------------------------------------
+
+function loadEnv(): void {
+  const envPath = path.join(process.cwd(), ".env.local");
+  if (!fs.existsSync(envPath)) return;
+  for (const line of fs.readFileSync(envPath, "utf-8").split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const eqIdx = trimmed.indexOf("=");
+    if (eqIdx === -1) continue;
+    const key = trimmed.slice(0, eqIdx).trim();
+    const val = trimmed.slice(eqIdx + 1).trim().replace(/^"(.*)"$/, "$1");
+    if (key && !process.env[key]) process.env[key] = val;
+  }
+}
+
+loadEnv();
+
+// ---------------------------------------------------------------------------
 // Config
 // ---------------------------------------------------------------------------
 
 const SITE_URL = "https://kstockflow.com";
 const INDEXNOW_KEY = "g98dgix2464s9ofac1s1z51fh3of33c3";
 const SITEMAP_PATH = path.join(process.cwd(), "out", "sitemap.xml");
+const CREDENTIALS_PATH = path.join(process.cwd(), "google-credentials.json");
 const CACHE_PATH = path.join(process.cwd(), ".indexnow-cache.json");
 
 // ---------------------------------------------------------------------------
@@ -108,33 +133,60 @@ async function submitIndexNow(urls: string[]): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// Google Sitemaps Ping (Search Console 대체)
+// Google Indexing API — 새 URL을 Google에 직접 색인 요청
 // ---------------------------------------------------------------------------
 
-async function pingGoogle(): Promise<void> {
-  // Search Console API는 OAuth 설정이 필요하므로,
-  // 사이트맵 URL을 직접 요청하여 구글 크롤러에 힌트를 줌
-  const sitemapUrl = `${SITE_URL}/sitemap.xml`;
+async function submitGoogleIndexing(urls: string[]): Promise<void> {
+  if (urls.length === 0) return;
 
   try {
-    // Google에 사이트맵 존재 확인 요청 (크롤러 힌트)
-    const res = await fetch(sitemapUrl, { method: "HEAD" });
-    if (res.ok) {
-      console.log(`  ✅ Google: 사이트맵 접근 확인 (${sitemapUrl})`);
-    }
-  } catch {
-    console.warn(`  ⚠️ Google 사이트맵 접근 실패`);
-  }
+    const { google } = await import("googleapis");
 
-  // Naver SearchAdvisor에도 직접 제출
-  try {
-    const naverPing = `https://searchadvisor.naver.com/indexnow?url=${encodeURIComponent(sitemapUrl)}&key=${INDEXNOW_KEY}`;
-    const res = await fetch(naverPing);
-    if (res.ok || res.status === 202) {
-      console.log(`  ✅ Naver: 사이트맵 ping 완료`);
+    let auth;
+    if (fs.existsSync(CREDENTIALS_PATH)) {
+      auth = new google.auth.GoogleAuth({
+        keyFile: CREDENTIALS_PATH,
+        scopes: ["https://www.googleapis.com/auth/indexing"],
+      });
+    } else {
+      const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+      const key = process.env.GOOGLE_PRIVATE_KEY;
+      if (!email || !key) {
+        console.log("  ⚠️ Google 인증 미설정 — 색인 요청 건너뜀");
+        console.log("     → google-credentials.json 또는 .env.local에 GOOGLE_SERVICE_ACCOUNT_EMAIL + GOOGLE_PRIVATE_KEY 설정");
+        return;
+      }
+      auth = new google.auth.JWT(
+        email,
+        undefined,
+        key.replace(/\\n/g, "\n"),
+        ["https://www.googleapis.com/auth/indexing"],
+      );
     }
-  } catch {
-    console.warn(`  ⚠️ Naver 사이트맵 ping 실패`);
+
+    const indexing = google.indexing({ version: "v3", auth });
+    let success = 0;
+    let failed = 0;
+
+    for (const url of urls) {
+      try {
+        await indexing.urlNotifications.publish({
+          requestBody: { url, type: "URL_UPDATED" },
+        });
+        console.log(`  ✅ Google: ${url}`);
+        success++;
+        await new Promise((r) => setTimeout(r, 500));
+      } catch (error: unknown) {
+        const msg = error instanceof Error ? error.message : String(error);
+        console.log(`  ❌ Google: ${url} — ${msg}`);
+        failed++;
+      }
+    }
+
+    console.log(`  📊 Google Indexing: ${success}개 성공, ${failed}개 실패`);
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error);
+    console.warn(`  ⚠️ Google Indexing 모듈 오류: ${msg}`);
   }
 }
 
@@ -178,9 +230,9 @@ async function main(): Promise<void> {
   console.log("\n📡 IndexNow API 제출 중...");
   await submitIndexNow(urlsToSubmit);
 
-  // 4. Google / Naver 사이트맵 ping
-  console.log("\n🔔 검색엔진 사이트맵 알림...");
-  await pingGoogle();
+  // 4. Google Indexing API 제출
+  console.log("\n🔗 Google Indexing API 제출 중...");
+  await submitGoogleIndexing(urlsToSubmit);
 
   // 5. 캐시 업데이트
   saveCache(allUrls);

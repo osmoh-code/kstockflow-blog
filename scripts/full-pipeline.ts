@@ -275,7 +275,7 @@ async function requestIndexing(
     console.log("  ⚠️  Google 서비스 계정 미설정 — 인덱싱 요청 건너뜀");
     console.log("     .env.local에 GOOGLE_SERVICE_ACCOUNT_EMAIL, GOOGLE_PRIVATE_KEY를 설정하세요.");
     return slugs.map((slug) => ({
-      url: `${SITE_URL}/post/${slug}`,
+      url: `${SITE_URL}/posts/${slug}/`,
       success: false,
     }));
   }
@@ -304,7 +304,7 @@ async function requestIndexing(
     const results: { url: string; success: boolean }[] = [];
 
     for (const slug of slugs) {
-      const url = `${SITE_URL}/post/${slug}`;
+      const url = `${SITE_URL}/posts/${slug}/`;
       try {
         await indexing.urlNotifications.publish({
           requestBody: { url, type: "URL_UPDATED" },
@@ -321,7 +321,7 @@ async function requestIndexing(
   } catch {
     console.log("  ⚠️  googleapis 패키지를 찾을 수 없습니다. npm install googleapis 를 실행하세요.");
     return slugs.map((slug) => ({
-      url: `${SITE_URL}/post/${slug}`,
+      url: `${SITE_URL}/posts/${slug}/`,
       success: false,
     }));
   }

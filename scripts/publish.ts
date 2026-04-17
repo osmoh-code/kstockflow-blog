@@ -87,7 +87,7 @@ function main(): void {
   run("git push origin main");
 
   console.log(`\n✅ 퍼블리싱 완료!`);
-  console.log(`🌐 URL: https://kstockflow.com/post/${latestFile.replace(/\.mdx$/, "")}`);
+  console.log(`🌐 URL: https://kstockflow.com/posts/${latestFile.replace(/\.mdx$/, "")}/`);
   console.log();
 }
 
