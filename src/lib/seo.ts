@@ -123,6 +123,32 @@ export function generateWebSiteStructuredData(): string {
       },
     },
     inLanguage: "ko",
+    potentialAction: {
+      "@type": "SearchAction",
+      target: {
+        "@type": "EntryPoint",
+        urlTemplate: `${SITE_URL}/?q={search_term_string}`,
+      },
+      "query-input": "required name=search_term_string",
+    },
+  };
+
+  return JSON.stringify(structuredData);
+}
+
+export function generateItemListStructuredData(
+  posts: readonly { title: string; slug: string; description: string }[]
+): string {
+  const structuredData = {
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    itemListElement: posts.map((post, index) => ({
+      "@type": "ListItem",
+      position: index + 1,
+      name: post.title,
+      url: `${SITE_URL}/posts/${post.slug}/`,
+      description: post.description,
+    })),
   };
 
   return JSON.stringify(structuredData);

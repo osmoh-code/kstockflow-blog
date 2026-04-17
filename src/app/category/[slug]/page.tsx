@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { CATEGORIES, SITE_NAME, SITE_URL } from "@/lib/constants";
 import { getPostsByCategory } from "@/lib/posts";
-import { generateBreadcrumbStructuredData } from "@/lib/seo";
+import { generateBreadcrumbStructuredData, generateItemListStructuredData } from "@/lib/seo";
 import Link from "next/link";
 import BlogCard from "@/components/BlogCard";
 import Sidebar from "@/components/Sidebar";
@@ -91,12 +91,23 @@ export default async function CategoryPage({ params }: PageProps) {
     { name: category.name, url: `/category/${slug}/` },
   ];
   const breadcrumbStructuredData = generateBreadcrumbStructuredData(breadcrumbs);
+  const itemListStructuredData = generateItemListStructuredData(
+    posts.map((p) => ({
+      title: p.meta.title,
+      slug: p.meta.slug,
+      description: p.meta.description,
+    }))
+  );
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: breadcrumbStructuredData }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: itemListStructuredData }}
       />
       {/* Category Header */}
       <header className="mb-10">

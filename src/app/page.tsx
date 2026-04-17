@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { getAllPosts } from "@/lib/posts";
-import { generateWebSiteStructuredData } from "@/lib/seo";
+import { generateWebSiteStructuredData, generateItemListStructuredData } from "@/lib/seo";
 import HeroSection from "@/components/HeroSection";
 import FeaturedPost from "@/components/FeaturedPost";
 import BlogCard from "@/components/BlogCard";
@@ -10,6 +10,13 @@ import Sidebar from "@/components/Sidebar";
 export default function HomePage() {
   const allPosts = getAllPosts();
   const websiteStructuredData = generateWebSiteStructuredData();
+  const itemListStructuredData = generateItemListStructuredData(
+    allPosts.slice(0, 10).map((p) => ({
+      title: p.meta.title,
+      slug: p.meta.slug,
+      description: p.meta.description,
+    }))
+  );
 
   // Featured: 핫이슈 최신글 고정
   const featuredPost = allPosts.find((p) => p.meta.category === "hot-issues") ?? null;
@@ -27,6 +34,10 @@ export default function HomePage() {
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: websiteStructuredData }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: itemListStructuredData }}
       />
 
       <HeroSection />
