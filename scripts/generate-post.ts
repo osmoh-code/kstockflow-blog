@@ -1258,6 +1258,19 @@ async function main(): Promise<void> {
   fs.writeFileSync(filePath, mdx, "utf-8");
 
   // -----------------------------------------------------------------------
+  // Step 6: 네이버 블로그 요약본 자동 생성 (featured-stocks, hot-issues만)
+  // -----------------------------------------------------------------------
+  if (post.category === "featured-stocks" || post.category === "hot-issues") {
+    try {
+      const { generateNaverSummary } = await import("./generate-naver-summary-lib");
+      const naverPath = generateNaverSummary(slug);
+      console.log(`\n📝 네이버 블로그 요약본 생성됨: ${naverPath}`);
+    } catch {
+      console.log(`\n⚠️ 네이버 요약본 생성 실패 (글 생성에는 영향 없음)`);
+    }
+  }
+
+  // -----------------------------------------------------------------------
   // Summary
   // -----------------------------------------------------------------------
   console.log(`\n✨ 포스트 생성 완료!`);
