@@ -22,8 +22,16 @@ const config = {
         allow: "/",
         disallow: ["/api/", "/admin/"],
       },
+      // AI Search Crawlers (GEO — allow citation in AI answers)
+      { userAgent: "GPTBot", allow: "/" },
+      { userAgent: "OAI-SearchBot", allow: "/" },
+      { userAgent: "ChatGPT-User", allow: "/" },
+      { userAgent: "PerplexityBot", allow: "/" },
+      { userAgent: "ClaudeBot", allow: "/" },
+      { userAgent: "Claude-SearchBot", allow: "/" },
+      { userAgent: "Google-Extended", allow: "/" },
+      { userAgent: "Amazonbot", allow: "/" },
     ],
-    // 문제를 일으켰던 additionalSitemaps는 삭제했습니다.
   },
   transform: async (config, urlPath) => {
     // MDX 파일의 실제 수정일을 lastmod로 사용 (Google이 동일 lastmod를 무시하므로)
