@@ -26,7 +26,7 @@ export default function HomePage() {
   const postsByCategory = columnCategories.map((cat) =>
     allPosts
       .filter((p) => p.meta.category === cat && p.meta.slug !== featuredPost?.meta.slug)
-      .slice(0, 2)
+      .slice(0, 3)
   );
 
   return (
