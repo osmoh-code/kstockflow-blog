@@ -1201,9 +1201,23 @@ async function main(): Promise<void> {
     } else if (categoryOverride === "featured-stocks") {
       slugSuffix = "featured-stocks";
     } else if (categoryOverride === "new-stocks") {
-      slugSuffix = `${toSlug(keyword)}-new-listing`;
+      // Claude 응답의 영문 slug 우선, 없으면 toSlug fallback
+      const claudeSlug = post.slug;
+      slugSuffix = claudeSlug
+        ? `${claudeSlug}-new-listing`
+        : `${toSlug(keyword)}-new-listing`;
+      if (!claudeSlug) {
+        console.warn(`⚠️ Claude 응답에 slug 누락 — toSlug() fallback 사용 (한글 음역 위험)`);
+      }
     } else {
-      slugSuffix = toSlug(keyword);
+      // hot-issues: Claude 응답의 영문 slug 우선, 없으면 toSlug fallback
+      const claudeSlug = post.slug;
+      slugSuffix = claudeSlug ?? toSlug(keyword);
+      if (claudeSlug) {
+        console.log(`✅ Claude 영문 슬러그 사용: ${claudeSlug}`);
+      } else {
+        console.warn(`⚠️ Claude 응답에 slug 누락 — toSlug() fallback 사용 (한글 음역 위험)`);
+      }
     }
     slug = `${date}-${slugSuffix}`;
   }

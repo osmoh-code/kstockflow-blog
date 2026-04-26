@@ -98,6 +98,18 @@ npx tsx scripts/generate-post.ts "키워드" --category hot-issues --date "2026-
 - 키워드 밀도: 본문에서 메인 키워드 자연스럽게 5-10회 등장
 - FAQ 섹션 필수 (구글 리치 스니펫 노출용)
 
+### 슬러그 (URL) 규칙 — SEO 핵심
+
+- **영문 키워드 슬러그만 사용**. 한글 음역(romanization) 절대 금지
+  - ❌ 나쁜 예: `seonbakenjin-sujugeubjeung-stocks`, `korona-19-sikada-byeoni-ba32-hwaksan-uryeo`, `samseong-sdi-bencheu-battery-gonggeub-secondary-stocks`
+  - ✅ 좋은 예: `ship-engine-orders-surge-stocks`, `covid-19-cikada-variant-spread-concern`, `samsung-sdi-mercedes-battery-supply-stocks`
+- 슬러그는 **Claude API 응답의 `slug:` 필드**에서 가져옴 (`scripts/lib/claude-prompt.ts`의 출력 형식에 명시)
+- Claude가 영문 슬러그를 못 만들거나 음역 패턴 감지되면 `parseResponse`의 `sanitizeSlug`가 거부 → `toSlug()` fallback (`scripts/generate-post.ts`의 한글-영문 매핑 테이블)
+- 30~60자 사이, 모두 소문자, 단어 구분은 하이픈, 숫자 허용
+- 핫이슈 슬러그는 `-stocks` 접미사로 통일
+- **이미 발행된 글의 슬러그는 절대 변경하지 않음** (308 리다이렉트로도 색인 흔들림 + PageRank 손실)
+- 새 키워드가 매핑 테이블에 없어도 Claude가 영문 슬러그 생성하므로 매핑 추가 불필요
+
 ### 내부 링크 (SEO 핵심 — 반드시 준수)
 
 - 글당 3~5개의 내부 링크를 본문 중간에 자연스럽게 삽입

@@ -16,6 +16,7 @@ export interface GeneratedPost {
   readonly tags: readonly string[];
   readonly content: string;
   readonly relatedStocks: readonly string[];
+  readonly slug?: string;
 }
 
 export interface PromptPair {
@@ -160,7 +161,18 @@ description: (150-160자 메타 설명)
 category: 핫이슈
 tags: tag1, tag2, tag3, tag4, tag5
 related_stocks: 종목1, 종목2, 종목3, ...
+slug: (영문 키워드 슬러그 — 아래 규칙 엄수)
 ---CONTENT---
+
+⚠️ slug 작성 규칙 (SEO 핵심 — 절대 준수):
+- **영문 키워드만 사용**. 한글 음역(romanization) 절대 금지.
+  - ❌ 나쁜 예: \`samseong-sdi-bencheu-battery-gonggeub\`, \`seonbakenjin-sujugeubjeung\`, \`korona-19-sikada-byeoni\`
+  - ✅ 좋은 예: \`samsung-sdi-mercedes-battery-supply\`, \`ship-engine-orders-surge\`, \`covid-19-cikada-variant\`
+- 핵심 키워드 2~5개를 영어로 번역해 하이픈으로 연결 (예: 한글 "북극항로 특별법" → 영문 \`arctic-route-special-act\`)
+- 종목명/회사명은 공식 영문 표기 사용 (예: 삼성SDI → \`samsung-sdi\`, 효성중공업 → \`hyosung-heavy\`)
+- 일반 주제어는 직역 가능한 영어 단어 사용 (수주 → \`orders\`, 급증 → \`surge\`, 수혜주 → \`stocks\`, 관련주 → \`stocks\`)
+- 30~60자 사이, 모두 소문자, 단어 구분은 하이픈(-), 숫자 허용
+- 핫이슈 슬러그는 \`-stocks\`로 끝내기 (예: \`ai-power-demand-stocks\`)
 (마크다운 본문)
 `;
 
@@ -284,6 +296,7 @@ description: (150-160자, 종목명과 핵심 투자포인트를 포함한 메�
 category: 신규 상장주
 tags: ${keyword}, ${keyword} 상장, ${keyword} 공모, 신규상장, IPO 분석
 related_stocks: ${keyword}
+slug: (회사명을 공식 영문 표기로 작성. 한글 음역 절대 금지. 예: 삼양식품 → samyang-foods, 카카오뱅크 → kakaobank)
 ---CONTENT---
 
 ## 필수 본문 구조 (이 순서를 반드시 따르세요)
@@ -872,5 +885,36 @@ export function parseResponse(
     );
   }
 
-  return { title, description, category, tags, content, relatedStocks };
+  // slug 파싱 — Claude가 영문 키워드 슬러그를 생성한 경우 사용
+  // featured-stocks는 generate-post.ts에서 고정 슬러그(featured-stocks) 사용하므로 여기서는 무시
+  const slugRaw = getValue("slug");
+  const slug = slugRaw && categorySlug !== "featured-stocks" ? sanitizeSlug(slugRaw) : undefined;
+
+  return { title, description, category, tags, content, relatedStocks, slug };
+}
+
+// Claude 응답의 slug를 안전하게 정규화 (한글 음역/잘못된 문자 차단)
+function sanitizeSlug(raw: string): string | undefined {
+  // 따옴표/괄호/주석 제거
+  let s = raw.trim().replace(/^['"`]|['"`]$/g, "").replace(/\s*\([^)]*\)\s*$/, "").trim();
+  // 소문자 변환
+  s = s.toLowerCase();
+  // 한글이 포함되어 있으면 거부 (음역 슬러그도 한글은 없으므로 다른 검사 필요)
+  if (/[가-힣]/.test(s)) return undefined;
+  // 영문/숫자/하이픈만 허용
+  s = s.replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
+  // 길이 제한 (10~80자)
+  if (s.length < 5 || s.length > 80) return undefined;
+  // 음역 패턴 휴리스틱: 한국어 자모 변환 흔적이 강한 클러스터 검출
+  // 예: "seonbakenjin", "sujugeubjeung", "ba32hwaksan", "sikada", "byeoni"
+  const ROMANIZED_HINTS = ["eub", "eunj", "yeong", "haeng", "neun", "joog", "deung", "ssang"];
+  let hintCount = 0;
+  for (const h of ROMANIZED_HINTS) {
+    if (s.includes(h)) hintCount++;
+  }
+  if (hintCount >= 2) {
+    console.warn(`⚠️ slug에 한글 음역 패턴 감지 (${hintCount}개): "${s}" — Claude 슬러그 거부, fallback 사용`);
+    return undefined;
+  }
+  return s;
 }
