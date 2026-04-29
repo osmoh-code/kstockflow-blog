@@ -34,6 +34,11 @@ function checkRequiredFiles() {
 }
 
 // 2. 모든 포스트 HTML 검증
+// 옛날에 토SLug fallback으로 발행됐다가 삭제된 가비지 슬러그 — 신규 발행은 차단하되 legacy는 무시
+const KNOWN_LEGACY_GARBAGE_SLUGS = new Set<string>([
+  // 현재 content/posts에 없으므로 빈 배열 — 미래 발행에서만 작동
+]);
+
 function checkPostPages() {
   const postsDir = path.join(OUT_DIR, "posts");
   if (!fs.existsSync(postsDir)) { error("out/posts/ 디렉토리 없음"); return; }
@@ -86,9 +91,38 @@ function checkPostPages() {
       error(`${slug}: title 태그 누락`);
     }
 
+    // title 중복 패턴 검증 (TOP N / 연도 두 번 등장 = 빌더 버그)
+    const titleMatch = html.match(/<title>([^<]+)<\/title>/);
+    if (titleMatch) {
+      const titleText = titleMatch[1];
+      const topNCount = (titleText.match(/TOP\s*\d+/gi) ?? []).length;
+      const yearCount = (titleText.match(/\b20\d{2}\b/g) ?? []).length;
+      if (topNCount >= 2) {
+        error(`${slug}: title에 "TOP N" 패턴이 ${topNCount}회 등장 (중복 버그) — "${titleText}"`);
+      }
+      if (yearCount >= 2) {
+        error(`${slug}: title에 연도(20XX)가 ${yearCount}회 등장 (중복 버그) — "${titleText}"`);
+      }
+      // SERP 잘림 경고 (한글 기준 35자 이상)
+      if (titleText.length > 60) {
+        warn(`${slug}: title ${titleText.length}자 — SERP에서 잘릴 수 있음 (권장 35~55자)`);
+      }
+    }
+
     // description 존재 확인
     if (!html.includes('name="description"')) {
       error(`${slug}: description 메타태그 누락`);
+    }
+
+    // description 빈 문자열 검증 (frontmatter 누락 사고 차단)
+    const descMatch = html.match(/name="description"\s+content="([^"]*)"/);
+    if (descMatch && descMatch[1].trim().length === 0) {
+      error(`${slug}: description 메타태그 빈 문자열 — frontmatter 누락 의심`);
+    }
+
+    // 가비지 fallback 슬러그 차단 (toSlug() Date.now base36 fallback: post-XXXXXX)
+    if (/^\d{4}-\d{2}-\d{2}-post-[a-z0-9]{4,8}$/.test(slug) && !KNOWN_LEGACY_GARBAGE_SLUGS.has(slug)) {
+      error(`${slug}: 자동 fallback 슬러그(post-XXXXXX) 감지 — generate-post.ts toSlug() 실패. 의미 있는 영문 슬러그로 재발행 필요.`);
     }
 
     // BlogPosting 중복 확인 (JSON-LD 내에서만)

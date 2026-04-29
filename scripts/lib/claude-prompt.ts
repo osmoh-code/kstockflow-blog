@@ -862,13 +862,30 @@ export function parseResponse(
   } else if (categorySlug === "new-stocks") {
     title = getValue("title") || keyword;
   } else {
-    // hot-issues (and default category)
-    const stockCount = relatedStocks.length || 5;
-    // 키워드에 이미 "관련주"가 포함되어 있으면 중복 방지
-    const year = new Date().getFullYear();
-    const suffix = keyword.includes("관련주") ? `TOP ${stockCount}` : `관련주 TOP ${stockCount}`;
-    // Always append the canonical subtitle for hot-issues SEO + consistency
-    title = `${keyword} ${suffix} ${year} | 대장주·수혜주·테마주 총정리`;
+    // hot-issues — Claude 응답 title 우선 사용 (CTR 향상). 빈 응답이거나 중복 패턴이면 fallback.
+    const claudeTitle = getValue("title").trim();
+    const topNCount = (claudeTitle.match(/TOP\s*\d+/gi) ?? []).length;
+    const yearCount = (claudeTitle.match(/\b20\d{2}\b/g) ?? []).length;
+    const hasDuplicate = topNCount >= 2 || yearCount >= 2;
+
+    if (claudeTitle && !hasDuplicate) {
+      title = claudeTitle;
+    } else {
+      // fallback: keyword에서 TOP N / YYYY 잔여물 제거 후 재조립 (중복 방지)
+      const cleanKeyword = keyword
+        .replace(/\s*\|\s*.*$/, "")
+        .replace(/\s*TOP\s*\d+\s*/gi, " ")
+        .replace(/\s*\b20\d{2}\b\s*/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+      const stockCount = relatedStocks.length || 5;
+      const year = new Date().getFullYear();
+      const suffix = cleanKeyword.includes("관련주") ? `TOP ${stockCount}` : `관련주 TOP ${stockCount}`;
+      title = `${cleanKeyword} ${suffix} ${year} | 대장주·수혜주·테마주 총정리`;
+      if (hasDuplicate) {
+        console.warn(`⚠️ Claude title 중복 패턴 감지 (TOP ${topNCount}회 / 연도 ${yearCount}회): "${claudeTitle}" → fallback 재조립`);
+      }
+    }
   }
 
   const description =

@@ -98,6 +98,36 @@ npx tsx scripts/generate-post.ts "키워드" --category hot-issues --date "2026-
 - 키워드 밀도: 본문에서 메인 키워드 자연스럽게 5-10회 등장
 - FAQ 섹션 필수 (구글 리치 스니펫 노출용)
 
+### 🎯 SERP CTR 최적화 (frontmatter title/description — 2026-04-29 강화)
+
+GSC Search Analytics 분석 결과: 노출 대비 클릭이 1/10 수준이면 색인이 아니라 **메타 CTR 문제**.
+
+**title 작성 규칙 (35~55자 권장, 60자 초과 시 SERP 잘림):**
+- ❌ boilerplate 긴 suffix 금지: "| 대장주·수혜주·테마주 총정리" 17자가 핵심 정보를 잘라먹음
+- ✅ **대표 종목명 1~3개**를 suffix에 포함 → 클릭 유도력 강함
+  - 좋은 예: "AI 전력 관련주 TOP 8 2026 | 대원전선·LS ELECTRIC·효성중공업 데이터센터 수혜주"
+  - 좋은 예: "중동 재건 관련주 한국 철강주 TOP 7 2026 | 부국철강·현대제철·세아제강"
+  - 나쁜 예: "AI 전력 수요 급증 관련주 TOP 8 2026 | 대장주·수혜주·테마주 총정리"
+- ❌ **TOP N / 연도 중복 패턴** 금지: "TOP 6 2026 TOP 6 2026" 같은 빌더 버그 → `validate-seo.ts`가 자동 차단
+- ✅ **검색 query에서 자주 나오는 long-tail 키워드 1개 포함**: "한국", "주가 전망" 등
+  - 사례: 리센스메디컬 검색 query 1위는 "리센스메디컬 **주가 전망** 2026"인데 title에는 "상장 분석" → mismatch로 클릭 0/488 노출
+  - 작성 전 GSC `searchanalytics.query` 결과를 확인할 수 있으면 더 정확
+
+**description 작성 규칙 (120~155자):**
+- ❌ "투자 포인트를 총정리해보겠습니다" 같은 generic 마무리 금지
+- ✅ 구체 수치 + 종목명 + 행동 가능한 정보로 마무리
+  - 좋은 예: "부국철강 +10.54% 급등, 현대제철 +3.25% 상승 등 재건 수혜주 움직임을 실시간 시세와 함께 정리합니다."
+  - 나쁜 예: "관련주들의 강세 가운데 투자 포인트를 총정리해보겠습니다."
+
+**검증 도구:**
+- `npx tsx scripts/gsc-ctr-audit.ts` — 노출 대비 클릭 약한 글 식별 + 검색 query 분포
+- `npm run build`의 `validate-seo.ts`가 title 중복 / 빈 description / 가비지 슬러그 자동 차단
+
+**미래 글 자동 적용 — claude-prompt.ts (2026-04-29 fix):**
+- hot-issues `parseResponse`가 Claude 응답 title을 우선 사용 (이전엔 무조건 빌더가 덮어써서 중복 버그 발생)
+- TOP N / 연도가 2회 이상 등장하면 빌더가 자동으로 제거 후 재조립
+- 변경 위치: `scripts/lib/claude-prompt.ts` parseResponse hot-issues 분기
+
 ### 슬러그 (URL) 규칙 — SEO 핵심
 
 - **영문 키워드 슬러그만 사용**. 한글 음역(romanization) 절대 금지
@@ -109,6 +139,13 @@ npx tsx scripts/generate-post.ts "키워드" --category hot-issues --date "2026-
 - 핫이슈 슬러그는 `-stocks` 접미사로 통일
 - **이미 발행된 글의 슬러그는 절대 변경하지 않음** (308 리다이렉트로도 색인 흔들림 + PageRank 손실)
 - 새 키워드가 매핑 테이블에 없어도 Claude가 영문 슬러그 생성하므로 매핑 추가 불필요
+
+#### 🚨 자동 fallback 슬러그(`post-XXXXXX`) 절대 발행 금지
+
+- `scripts/generate-post.ts`의 `toSlug()` 마지막 fallback이 `post-${Date.now()}` 형태를 만듦. **여기 도달하면 안 됨.**
+- 과거 사고: `post-woyvk4` (호르무즈), `post-4ej7sd` (광통신) 슬러그가 실제로 발행됨 → 삭제 후 의미있는 슬러그로 재발행했지만 옛 URL이 GSC에 색인되어 호르무즈 키워드 30 imp / 6위까지 잡았는데 클릭 0 (페이지 없음). 한 달간 수백 노출 손실.
+- `validate-seo.ts`가 빌드 시 `^\d{4}-\d{2}-\d{2}-post-[a-z0-9]{4,8}$` 패턴 자동 차단 — 발견되면 빌드 실패.
+- 발행 전 `npx tsx scripts/generate-post.ts ...` 콘솔에 `⚠️ 슬러그 생성 실패, 랜덤 fallback 사용` 경고가 보이면 즉시 중단하고 `--slug` 옵션으로 의미 있는 영문 슬러그를 직접 지정하거나, KOREAN_TO_SLUG 매핑 테이블에 추가하세요.
 
 ### 내부 링크 (SEO 핵심 — 반드시 준수)
 
@@ -536,6 +573,22 @@ scripts/shorts/
 - 화면: `remotion/Shorts/scenes/CTAScene.tsx`
 - 나레이션 텍스트: `scripts/shorts/assets.ts` (collectSegments CTA 부분)
 - TTS SSML: `scripts/shorts/tts.ts` (collectSceneTexts + wrapCtaWithSsml)
+
+### TTS 콤마 자동 break (전 카테고리 — 2026-04-28 추가)
+
+`scripts/shorts/tts.ts`의 `wrapWithBreakAfterFirstWord`가 모든 body scene narration에 SSML break 자동 삽입:
+
+1. 첫 단어(종목명) 뒤 300ms break
+2. % + 액션 동사 뒤 300ms break
+3. **mid-sentence 콤마(", ") 자리에 400ms break** ← 신규
+
+`chartIntro`는 hook 분류라 wrapWithBreak 적용 안 됨 (첫 단어 break가 chartIntro에선 어색했음).
+
+**작성 가이드**: narration/chartNote에 콤마를 적극 활용하면 자연스러운 호흡 자동 생성.
+- ❌ "매집구간 형성 빠른 상한가로" — 한 호흡에 줄줄
+- ✅ "매집구간 형성, 빠른 상한가로" — 콤마에서 0.4초 호흡
+
+featured-stocks/hot-issues/sector-leaders 모두 동일 정책. 새 카테고리 추가 시에도 `synthesizeForSlug` 그대로 사용.
 
 ### BGM
 
