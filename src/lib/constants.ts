@@ -5,7 +5,8 @@ export const SITE_DESCRIPTION =
 export const AUTHOR_NAME = "전조";
 export const DEFAULT_OG_IMAGE = "/images/og-default.png";
 
-export const ADSENSE_CLIENT_ID = process.env.NEXT_PUBLIC_ADSENSE_CLIENT_ID ?? "";
+export const ADSENSE_CLIENT_ID =
+  process.env.NEXT_PUBLIC_ADSENSE_CLIENT_ID ?? "ca-pub-3541857946122679";
 export const GA_TRACKING_ID = "G-39M45Y7476";
 
 export interface Category {
