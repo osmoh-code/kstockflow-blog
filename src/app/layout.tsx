@@ -112,14 +112,16 @@ export default function RootLayout({
   return (
     <html lang="ko" className={`${inter.variable} ${plusJakarta.variable}`}>
       <head>
-        {/* Google AdSense — only load with real publisher ID */}
+        {/* Google AdSense — site verification meta + script (head, static HTML) */}
         {ADSENSE_CLIENT_ID && (
-          <Script
-            async
-            src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${ADSENSE_CLIENT_ID}`}
-            crossOrigin="anonymous"
-            strategy="afterInteractive"
-          />
+          <>
+            <meta name="google-adsense-account" content={ADSENSE_CLIENT_ID} />
+            <script
+              async
+              src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${ADSENSE_CLIENT_ID}`}
+              crossOrigin="anonymous"
+            />
+          </>
         )}
         {/* Google Analytics */}
         <Script
