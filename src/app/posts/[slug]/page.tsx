@@ -50,10 +50,21 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
   const { meta } = post;
 
+  // featured-stocks 일일 발행 글은 색인 제외 (양산 시그널 차단, 쇼츠 input은 그대로)
+  // 카테고리 페이지는 색인 유지, 본문 개별 URL만 noindex.
+  const isFeaturedDaily = meta.category === "featured-stocks";
+
   return {
     title: meta.title,
     description: meta.description,
     keywords: [...meta.tags],
+    ...(isFeaturedDaily && {
+      robots: {
+        index: false,
+        follow: true,
+        googleBot: { index: false, follow: true },
+      },
+    }),
     openGraph: {
       title: meta.title,
       description: meta.description,

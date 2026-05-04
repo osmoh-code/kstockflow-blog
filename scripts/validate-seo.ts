@@ -193,6 +193,9 @@ function checkSitemap() {
       fs.statSync(path.join(postsDir, f)).isDirectory()
     );
     for (const slug of slugs) {
+      // featured-stocks 일일 발행 글은 sitemap 의도적 제외 (양산 시그널 차단).
+      // page.tsx에서 robots:noindex 처리되며 카테고리 페이지는 색인 유지.
+      if (slug.includes("-featured-stocks")) continue;
       if (!sitemap.includes(`/posts/${slug}/`)) {
         error(`사이트맵에 /posts/${slug}/ 누락`);
       }

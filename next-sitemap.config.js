@@ -66,6 +66,11 @@ const config = {
     }
 
     if (urlPath.startsWith("/posts/")) {
+      // featured-stocks 일일 발행 본문은 sitemap에서 제외 — 양산 시그널 차단.
+      // 카테고리 페이지는 살리고 개별 URL만 숨김. 쇼츠 input은 영향 없음.
+      if (urlPath.includes("-featured-stocks")) {
+        return null;
+      }
       const isHot = isTopNRecentPost(urlPath, 7);
       return {
         loc: urlPath,

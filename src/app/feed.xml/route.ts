@@ -32,6 +32,10 @@ export async function GET() {
   });
 
   for (const post of posts) {
+    // featured-stocks 일일 발행은 RSS·sitemap 모두 제외 (양산 시그널 차단).
+    // 카테고리 페이지에서만 노출되어 방문자 접근성은 유지됨.
+    if (post.meta.category === "featured-stocks") continue;
+
     const postUrl = `${SITE_URL}/posts/${post.meta.slug}/`;
 
     feed.addItem({
