@@ -154,9 +154,35 @@ YMYL(Your Money or Your Life) E-E-A-T 기준을 통과하는 고품질 금융 �
 - 허위/과장 정보 금지 (뉴스에 없는 사건 지어내기 = 허위 정보)
 - 투자 면책 고지 필수
 
+## SERP CTR 최적화 규칙 (매우 중요 — title 작성)
+
+GSC 데이터 분석 결과: 노출은 받지만 클릭 부족. 다음 규칙을 title에 강제 적용.
+
+**필수 요소 (모두 포함):**
+1. **검색 변형 long-tail 키워드 1개**: 기본 키워드(예: "AI 전력") 뒤에 검색되는 변형(예: "데이터센터", "수주", "수혜") 1개 추가
+2. **"한국" 1회 포함**: GSC query 중 "한국"이 가장 빈번한 long-tail. 빠뜨리지 말 것
+3. **TOP {N} 1회만**: 두 번 들어가면 빌더가 자동 차단
+4. **연도 ${new Date().getFullYear()} 1회만**: 두 번 들어가면 차단
+5. **suffix에 대표 종목 1~2개 + 등락률 % 1개**: SERP CTR을 가장 강하게 끌어당김
+6. **45~58자**: SERP에서 잘리지 않는 범위
+
+**금지:**
+- ❌ "| 대장주·수혜주·테마주 총정리" 같은 17자 boilerplate suffix (의미 없음, CTR 손실)
+- ❌ "관련주 TOP N 연도" 단순 반복 (검색 query 매칭 약함)
+- ❌ 60자 초과 (SERP 잘림)
+
+**좋은 예 (목표 형식):**
+- "AI 데이터센터 전력 관련주 한국 TOP 8 ${new Date().getFullYear()} | 대원전선 +26%·LS ELECTRIC 수혜주" (50자)
+- "중동 재건 철강주 한국 TOP 7 ${new Date().getFullYear()} | 부국철강 +10%·현대제철 수주 모멘텀" (45자)
+- "스테이블코인 결제 관련주 한국 TOP 6 ${new Date().getFullYear()} | 다날 +15%·미투온 결제 플랫폼 수혜" (48자)
+
+**나쁜 예 (CTR 0% 사례):**
+- "스페이스X 관련주 TOP 5 ${new Date().getFullYear()}" (20자, "한국"·long-tail·등락률 모두 누락)
+- "AI 전력 관련주 TOP 8 ${new Date().getFullYear()} | 대원전선·LS ELECTRIC·효성중공업 데이터센터 수혜주" (55자, "한국" 누락 + 등락률 누락 → 노출 2400 / 클릭 4)
+
 ## 출력 형식
 ---FRONTMATTER---
-title: ({키워드} 관련주 TOP {N} ${new Date().getFullYear()} | 대장주·수혜주·테마주 총정리 형식)
+title: ({핵심키워드} {long-tail수식어} 관련주 한국 TOP {N} ${new Date().getFullYear()} | {대장주1} +XX%·{대장주2} {모멘텀어} 형식, 45~58자)
 description: (150-160자 메타 설명)
 category: 핫이슈
 tags: tag1, tag2, tag3, tag4, tag5
@@ -862,26 +888,45 @@ export function parseResponse(
   } else if (categorySlug === "new-stocks") {
     title = getValue("title") || keyword;
   } else {
-    // hot-issues — Claude 응답 title 우선 사용 (CTR 향상). 빈 응답이거나 중복 패턴이면 fallback.
+    // hot-issues — Claude 응답 title 우선 사용 (CTR 향상). 빈 응답·중복 패턴·SERP CTR 룰 위반 시 fallback/보정.
     const claudeTitle = getValue("title").trim();
     const topNCount = (claudeTitle.match(/TOP\s*\d+/gi) ?? []).length;
     const yearCount = (claudeTitle.match(/\b20\d{2}\b/g) ?? []).length;
     const hasDuplicate = topNCount >= 2 || yearCount >= 2;
 
+    // SERP CTR 룰 검사: "한국" 키워드 누락 시 자동 삽입 시도
+    const hasKoreaKeyword = /한국|국내/.test(claudeTitle);
+
     if (claudeTitle && !hasDuplicate) {
-      title = claudeTitle;
+      // "한국" 누락 시 "관련주" 앞에 자동 삽입 (검색 query 매칭 강화)
+      if (!hasKoreaKeyword && /관련주\s*TOP/.test(claudeTitle)) {
+        title = claudeTitle.replace(/관련주\s*TOP/, "관련주 한국 TOP");
+        console.warn(`ℹ️ title에 "한국" 키워드 자동 추가: "${claudeTitle}" → "${title}"`);
+      } else {
+        title = claudeTitle;
+      }
+
+      // 길이 60자 초과 시 경고 (SERP 잘림)
+      if (title.length > 60) {
+        console.warn(`⚠️ title ${title.length}자 — SERP 잘림 가능 (권장 45~58자): "${title}"`);
+      }
     } else {
-      // fallback: keyword에서 TOP N / YYYY 잔여물 제거 후 재조립 (중복 방지)
+      // fallback: keyword에서 TOP N / YYYY 잔여물 제거 후 재조립 (중복 방지 + SERP CTR 룰 적용)
       const cleanKeyword = keyword
         .replace(/\s*\|\s*.*$/, "")
         .replace(/\s*TOP\s*\d+\s*/gi, " ")
         .replace(/\s*\b20\d{2}\b\s*/g, " ")
+        .replace(/관련주|수혜주|테마주/g, " ")
         .replace(/\s+/g, " ")
         .trim();
       const stockCount = relatedStocks.length || 5;
       const year = new Date().getFullYear();
-      const suffix = cleanKeyword.includes("관련주") ? `TOP ${stockCount}` : `관련주 TOP ${stockCount}`;
-      title = `${cleanKeyword} ${suffix} ${year} | 대장주·수혜주·테마주 총정리`;
+      const leadStock = relatedStocks[0]?.trim();
+      const secondStock = relatedStocks[1]?.trim();
+      const stockSuffix = leadStock && secondStock
+        ? ` | ${leadStock}·${secondStock} 수혜주`
+        : leadStock ? ` | ${leadStock} 수혜주` : "";
+      title = `${cleanKeyword} 관련주 한국 TOP ${stockCount} ${year}${stockSuffix}`;
       if (hasDuplicate) {
         console.warn(`⚠️ Claude title 중복 패턴 감지 (TOP ${topNCount}회 / 연도 ${yearCount}회): "${claudeTitle}" → fallback 재조립`);
       }
