@@ -68,8 +68,20 @@ const PLACEMENT_CONFIGS: Record<PlacementType, PlacementConfig> = {
   },
 };
 
+const PLACEHOLDER_SLOT_PATTERN = /_SLOT$/;
+
+function isValidSlot(slot: string): boolean {
+  if (!slot) return false;
+  if (PLACEHOLDER_SLOT_PATTERN.test(slot)) return false;
+  return /^\d+$/.test(slot);
+}
+
 export default function AdPlacement({ type, className = "" }: AdPlacementProps) {
   const config = PLACEMENT_CONFIGS[type];
+
+  if (!isValidSlot(config.slot)) {
+    return null;
+  }
 
   return (
     <aside
