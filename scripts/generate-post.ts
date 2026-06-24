@@ -40,7 +40,7 @@ import { searchNews, newsToContext } from "./lib/news-search";
 // ---------------------------------------------------------------------------
 
 const POSTS_DIR = path.join(process.cwd(), "content", "posts");
-const MODEL = "claude-sonnet-4-20250514";
+const MODEL = "claude-sonnet-4-6";
 const MAX_TOKENS = 16000;
 
 // ---------------------------------------------------------------------------
